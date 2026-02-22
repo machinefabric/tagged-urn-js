@@ -1353,23 +1353,23 @@ module.exports = { runTests };
 
 // TEST579: Non-equivalent URNs where one is more specific
 (() => {
-  const general = TaggedUrn.fromString('media:bytes');
-  const specific = TaggedUrn.fromString('media:pdf;bytes');
+  const general = TaggedUrn.fromString('media:');
+  const specific = TaggedUrn.fromString('media:pdf');
   assert(!general.isEquivalent(specific), 'TEST579: Should not be equivalent');
   assert(!specific.isEquivalent(general), 'TEST579: Should not be equivalent (reverse)');
 })();
 
 // TEST580: Comparable URNs on the same specialization chain
 (() => {
-  const general = TaggedUrn.fromString('media:bytes');
-  const specific = TaggedUrn.fromString('media:pdf;bytes');
+  const general = TaggedUrn.fromString('media:');
+  const specific = TaggedUrn.fromString('media:pdf');
   assert(general.isComparable(specific), 'TEST580: Should be comparable');
   assert(specific.isComparable(general), 'TEST580: Should be comparable (symmetric)');
 })();
 
 // TEST581: Incomparable URNs in different branches
 (() => {
-  const pdf = TaggedUrn.fromString('media:pdf;bytes');
+  const pdf = TaggedUrn.fromString('media:pdf');
   const txt = TaggedUrn.fromString('media:txt;textable');
   assert(!pdf.isComparable(txt), 'TEST581: Should not be comparable');
   assert(!txt.isComparable(pdf), 'TEST581: Should not be comparable (reverse)');
@@ -1386,7 +1386,7 @@ module.exports = { runTests };
 // TEST583: Prefix mismatch errors
 (() => {
   const cap = TaggedUrn.fromString('cap:op=test');
-  const media = TaggedUrn.fromString('media:bytes');
+  const media = TaggedUrn.fromString('media:');
   assertThrowsAny(() => cap.isEquivalent(media), 'TEST583: Prefix mismatch should error');
   assertThrowsAny(() => cap.isComparable(media), 'TEST583: Prefix mismatch should error');
 })();
