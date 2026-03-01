@@ -23,7 +23,7 @@
   "repository": {
     "directory": "tagged-urn-js",
     "type": "git",
-    "url": "https://github.com/jowharshamshiri/tagged-urn.git"
+    "url": "https://github.com/machinefabric/tagged-urn.git"
   },
   "scripts": {
     "test": "node tagged-urn.test.js"
