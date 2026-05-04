@@ -61,7 +61,7 @@ function assertThrowsAny(fn, message) {
 
 // TEST501: Verify basic URN creation from string with multiple tags
 function test501_tagged_urn_creation() {
-  const urn = TaggedUrn.fromString('cap:op=generate;ext=pdf;target=thumbnail');
+  const urn = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
   assertEqual(urn.getPrefix(), 'cap', 'Should get prefix');
   assertEqual(urn.getTag('op'), 'generate', 'Should get op tag');
   assertEqual(urn.getTag('target'), 'thumbnail', 'Should get target tag');
@@ -70,7 +70,7 @@ function test501_tagged_urn_creation() {
 
 // TEST502: Verify custom prefixes work and tags are sorted alphabetically
 function test502_custom_prefix() {
-  const urn = TaggedUrn.fromString('myapp:op=generate;ext=pdf');
+  const urn = TaggedUrn.fromString('myapp:generate;ext=pdf');
   assertEqual(urn.getPrefix(), 'myapp', 'Should get custom prefix');
   assertEqual(urn.getTag('op'), 'generate', 'Should get op tag');
   assertEqual(urn.toString(), 'myapp:ext=pdf;op=generate', 'Should sort tags alphabetically');
@@ -125,7 +125,7 @@ function test506_unquoted_values_lowercased() {
   assertEqual(urn.getTag('Op'), 'generate', 'Should lookup with mixed case key');
 
   // Normalized URN equals explicitly lowercase URN
-  const urn2 = TaggedUrn.fromString('cap:op=generate;ext=pdf;target=thumbnail');
+  const urn2 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
   assertEqual(urn.toString(), urn2.toString(), 'Should produce same canonical form');
   assert(urn.equals(urn2), 'Should be equal after normalization');
 }
@@ -266,7 +266,7 @@ function test516_round_trip_escapes() {
 // TEST517: Verify missing prefix causes error
 function test517_prefix_required() {
   assertThrows(
-    () => TaggedUrn.fromString('op=generate;ext=pdf'),
+    () => TaggedUrn.fromString('generate;ext=pdf'),
     ErrorCodes.MISSING_PREFIX,
     'Should require prefix'
   );
@@ -277,7 +277,7 @@ function test517_prefix_required() {
     'Should reject empty prefix'
   );
 
-  const urn = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
   assertEqual(urn.getTag('op'), 'generate', 'Should parse with valid prefix');
 
   // Case-insensitive prefix
@@ -287,8 +287,8 @@ function test517_prefix_required() {
 
 // TEST518: Verify trailing semicolon is optional and doesn't affect equality
 function test518_trailing_semicolon_equivalence() {
-  const urn1 = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const urn2 = TaggedUrn.fromString('cap:op=generate;ext=pdf;');
+  const urn1 = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const urn2 = TaggedUrn.fromString('cap:generate;ext=pdf;');
 
   assert(urn1.equals(urn2), 'Should be equal with/without trailing semicolon');
   assertEqual(urn1.toString(), urn2.toString(), 'Should have same canonical form');
@@ -302,8 +302,8 @@ function test518_trailing_semicolon_equivalence() {
 
 // TEST519: Verify canonical form: alphabetically sorted tags, no trailing semicolon
 function test519_canonical_string_format() {
-  const urn = TaggedUrn.fromString('cap:op=generate;target=thumbnail;ext=pdf');
-  assertEqual(urn.toString(), 'cap:ext=pdf;op=generate;target=thumbnail', 'Should be alphabetically sorted');
+  const urn = TaggedUrn.fromString('cap:generate;target=thumbnail;ext=pdf');
+  assertEqual(urn.toString(), 'cap:ext=pdf;generate;target=thumbnail', 'Should be alphabetically sorted');
 }
 
 // ============================================================================
@@ -312,9 +312,9 @@ function test519_canonical_string_format() {
 
 // TEST520: Verify hasTag and getTag methods work correctly
 function test520_tag_matching() {
-  const cap = TaggedUrn.fromString('cap:op=generate;ext=pdf;target=thumbnail');
+  const cap = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
 
-  const request1 = TaggedUrn.fromString('cap:op=generate;ext=pdf;target=thumbnail');
+  const request1 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
   assert(cap.conformsTo(request1), 'Should match exact request');
 
   const request2 = TaggedUrn.fromString('cap:op=generate');
@@ -330,7 +330,7 @@ function test520_tag_matching() {
 // TEST521: Verify value matching is case-sensitive
 function test521_matching_case_sensitive_values() {
   const cap1 = TaggedUrn.fromString('cap:OP=Generate;EXT=PDF;Target=Thumbnail');
-  const cap2 = TaggedUrn.fromString('cap:op=generate;ext=pdf;target=thumbnail');
+  const cap2 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
 
   // Unquoted values are lowercased, so these should be equal
   assert(cap1.equals(cap2), 'URNs with unquoted case differences should be equal');
@@ -352,7 +352,7 @@ function test522_missing_tag_handling() {
   assert(!instance.conformsTo(pattern1), 'Should NOT match when instance missing pattern-required tag');
 
   // Pattern missing tag = no constraint: MATCH
-  const instance2 = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const instance2 = TaggedUrn.fromString('cap:generate;ext=pdf');
   const pattern2 = TaggedUrn.fromString('cap:op=generate');
   assert(instance2.conformsTo(pattern2), 'Should match subset pattern');
 
@@ -419,17 +419,17 @@ function test525_builder_preserves_case() {
 function test526_compatibility() {
   // General pattern accepts specific instance
   const general = TaggedUrn.fromString('cap:op=generate');
-  const specific = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const specific = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(general.accepts(specific), 'General pattern accepts specific instance');
   assert(!specific.accepts(general), 'Specific does not accept general');
 
   // Wildcard pattern accepts any value
-  const wildcard = TaggedUrn.fromString('cap:op=generate;format=*');
-  const withFormat = TaggedUrn.fromString('cap:op=generate;format=json');
+  const wildcard = TaggedUrn.fromString('cap:generate;format=*');
+  const withFormat = TaggedUrn.fromString('cap:generate;format=json');
   assert(wildcard.accepts(withFormat), 'Wildcard accepts specific value');
 
   // Different op values: neither accepts the other
-  const cap1 = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const cap1 = TaggedUrn.fromString('cap:generate;ext=pdf');
   const cap3 = TaggedUrn.fromString('cap:image;op=extract');
   assert(!cap1.accepts(cap3), 'Different op should not accept');
   assert(!cap3.accepts(cap1), 'Different op should not accept (reverse)');
@@ -440,7 +440,7 @@ function test527_best_match() {
   const caps = [
     TaggedUrn.fromString('cap:op=*'),
     TaggedUrn.fromString('cap:op=generate'),
-    TaggedUrn.fromString('cap:op=generate;ext=pdf')
+    TaggedUrn.fromString('cap:generate;ext=pdf')
   ];
 
   const request = TaggedUrn.fromString('cap:op=generate');
@@ -462,7 +462,7 @@ function test528_merge_and_subset() {
   const cap1 = TaggedUrn.fromString('cap:op=generate');
   const cap2 = TaggedUrn.fromString('cap:ext=pdf;output=binary');
   const merged = cap1.merge(cap2);
-  assertEqual(merged.toString(), 'cap:ext=pdf;op=generate;output=binary', 'Should merge correctly');
+  assertEqual(merged.toString(), 'cap:ext=pdf;generate;output=binary', 'Should merge correctly');
 
   // Subset
   const subset = merged.subset(['type', 'ext']);
@@ -502,7 +502,7 @@ function test531_empty_tagged_urn() {
   assertEqual(Object.keys(empty.tags).length, 0, 'Should have no tags');
   assertEqual(empty.toString(), 'cap:', 'Should have correct string representation');
 
-  const specific = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const specific = TaggedUrn.fromString('cap:generate;ext=pdf');
 
   // Empty instance vs specific pattern: NO MATCH
   assert(!empty.conformsTo(specific), 'Empty instance should NOT match pattern with requirements');
@@ -642,67 +642,67 @@ function test542_semantic_equivalence() {
 
 // TEST543: Instance and pattern have same tag/value - matches
 function test543_matching_semantics_exact_match() {
-  const cap = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const request = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const cap = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const request = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(cap.conformsTo(request), 'Exact match should succeed');
 }
 
 // TEST544: Pattern requires tag but instance doesn't have it - no match
 function test544_matching_semantics_instance_missing_tag() {
   const instance = TaggedUrn.fromString('cap:op=generate');
-  const pattern = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const pattern = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(!instance.conformsTo(pattern), 'Instance missing tag should NOT match');
 
-  const patternOptional = TaggedUrn.fromString('cap:op=generate;ext=?');
+  const patternOptional = TaggedUrn.fromString('cap:generate;ext=?');
   assert(instance.conformsTo(patternOptional), 'Pattern with ext=? should match instance without ext');
 }
 
 // TEST545: Instance has extra tag not in pattern - still matches
 function test545_matching_semantics_extra_tag() {
-  const cap = TaggedUrn.fromString('cap:op=generate;ext=pdf;version=2');
-  const request = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const cap = TaggedUrn.fromString('cap:generate;ext=pdf;version=2');
+  const request = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(cap.conformsTo(request), 'Cap with extra tag should match');
 }
 
 // TEST546: Pattern has wildcard - matches any value
 function test546_matching_semantics_request_wildcard() {
-  const cap = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const request = TaggedUrn.fromString('cap:op=generate;ext=*');
+  const cap = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const request = TaggedUrn.fromString('cap:generate;ext=*');
   assert(cap.conformsTo(request), 'Request wildcard should match');
 }
 
 // TEST547: Instance has wildcard - matches any pattern constraint
 function test547_matching_semantics_cap_wildcard() {
-  const cap = TaggedUrn.fromString('cap:op=generate;ext=*');
-  const request = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const cap = TaggedUrn.fromString('cap:generate;ext=*');
+  const request = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(cap.conformsTo(request), 'Cap wildcard should match');
 }
 
 // TEST548: Instance and pattern have same key but different values - no match
 function test548_matching_semantics_value_mismatch() {
-  const cap = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const request = TaggedUrn.fromString('cap:op=generate;ext=docx');
+  const cap = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const request = TaggedUrn.fromString('cap:generate;ext=docx');
   assert(!cap.conformsTo(request), 'Value mismatch should not match');
 }
 
 // TEST549: Pattern has constraint instance doesn't have - no match
 function test549_matching_semantics_pattern_extra_tag() {
-  const instance = TaggedUrn.fromString('cap:op=generate_thumbnail;out="media:binary"');
-  const pattern = TaggedUrn.fromString('cap:op=generate_thumbnail;out="media:binary";ext=wav');
+  const instance = TaggedUrn.fromString('cap:generate-thumbnail;out="media:binary"');
+  const pattern = TaggedUrn.fromString('cap:generate-thumbnail;out="media:binary";ext=wav');
   assert(!instance.conformsTo(pattern), 'Instance missing ext should NOT match pattern requiring ext=wav');
 
-  const patternNoExt = TaggedUrn.fromString('cap:op=generate_thumbnail;out="media:binary"');
+  const patternNoExt = TaggedUrn.fromString('cap:generate-thumbnail;out="media:binary"');
   assert(instance.conformsTo(patternNoExt), 'Should match pattern without ext constraint');
 }
 
 // TEST550: Empty pattern matches any instance
 function test550_matching_semantics_empty_pattern() {
-  const instance = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const instance = TaggedUrn.fromString('cap:generate;ext=pdf');
   const emptyPattern = TaggedUrn.fromString('cap:');
   assert(instance.conformsTo(emptyPattern), 'Any instance should match empty pattern');
 
   const emptyInstance = TaggedUrn.fromString('cap:');
-  const pattern = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const pattern = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(!emptyInstance.conformsTo(pattern), 'Empty instance should NOT match pattern with requirements');
 }
 
@@ -712,7 +712,7 @@ function test551_matching_semantics_cross_dimension() {
   const pattern = TaggedUrn.fromString('cap:ext=pdf');
   assert(!instance.conformsTo(pattern), 'Instance without ext should NOT match pattern requiring ext');
 
-  const instance2 = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const instance2 = TaggedUrn.fromString('cap:generate;ext=pdf');
   const pattern2 = TaggedUrn.fromString('cap:ext=pdf');
   assert(instance2.conformsTo(pattern2), 'Instance with ext=pdf should match');
 }
@@ -763,20 +763,20 @@ function test554_valueless_tag_parsing_multiple() {
 
 // TEST555: Mix of valueless and valued tags works
 function test555_valueless_tag_mixed_with_valued() {
-  const urn = TaggedUrn.fromString('cap:op=generate;optimize;ext=pdf;secure');
+  const urn = TaggedUrn.fromString('cap:generate;optimize;ext=pdf;secure');
   assertEqual(urn.getTag('op'), 'generate', 'Should parse valued tag');
   assertEqual(urn.getTag('optimize'), '*', 'Should parse value-less tag');
   assertEqual(urn.getTag('ext'), 'pdf', 'Should parse valued tag');
   assertEqual(urn.getTag('secure'), '*', 'Should parse value-less tag');
-  assertEqual(urn.toString(), 'cap:ext=pdf;op=generate;optimize;secure', 'Should serialize alphabetically');
+  assertEqual(urn.toString(), 'cap:ext=pdf;generate;optimize;secure', 'Should serialize alphabetically');
 }
 
 // TEST556: Valueless tag at end (no trailing semicolon) works
 function test556_valueless_tag_at_end() {
-  const urn = TaggedUrn.fromString('cap:op=generate;optimize');
+  const urn = TaggedUrn.fromString('cap:generate;optimize');
   assertEqual(urn.getTag('op'), 'generate', 'Should parse valued tag');
   assertEqual(urn.getTag('optimize'), '*', 'Should parse value-less tag');
-  assertEqual(urn.toString(), 'cap:op=generate;optimize', 'Should serialize correctly');
+  assertEqual(urn.toString(), 'cap:generate;optimize', 'Should serialize correctly');
 }
 
 // TEST557: Valueless tag is equivalent to explicit wildcard
@@ -790,10 +790,10 @@ function test557_valueless_tag_equivalence_to_wildcard() {
 
 // TEST558: Valueless tag (wildcard) matches any value
 function test558_valueless_tag_matching() {
-  const urn = TaggedUrn.fromString('cap:op=generate;ext');
-  const requestPdf = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const requestDocx = TaggedUrn.fromString('cap:op=generate;ext=docx');
-  const requestAny = TaggedUrn.fromString('cap:op=generate;ext=anything');
+  const urn = TaggedUrn.fromString('cap:generate;ext');
+  const requestPdf = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const requestDocx = TaggedUrn.fromString('cap:generate;ext=docx');
+  const requestAny = TaggedUrn.fromString('cap:generate;ext=anything');
 
   assert(urn.conformsTo(requestPdf), 'Should match pdf');
   assert(urn.conformsTo(requestDocx), 'Should match docx');
@@ -802,24 +802,24 @@ function test558_valueless_tag_matching() {
 
 // TEST559: Pattern with valueless tag requires instance to have tag (any value)
 function test559_valueless_tag_in_pattern() {
-  const pattern = TaggedUrn.fromString('cap:op=generate;ext');
-  const instancePdf = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const instanceDocx = TaggedUrn.fromString('cap:op=generate;ext=docx');
+  const pattern = TaggedUrn.fromString('cap:generate;ext');
+  const instancePdf = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const instanceDocx = TaggedUrn.fromString('cap:generate;ext=docx');
   const instanceMissing = TaggedUrn.fromString('cap:op=generate');
 
   assert(instancePdf.conformsTo(pattern), 'Should match pdf instance');
   assert(instanceDocx.conformsTo(pattern), 'Should match docx instance');
   assert(!instanceMissing.conformsTo(pattern), 'Should NOT match instance without ext');
 
-  const patternOptional = TaggedUrn.fromString('cap:op=generate;ext=?');
+  const patternOptional = TaggedUrn.fromString('cap:generate;ext=?');
   assert(instanceMissing.conformsTo(patternOptional), 'Instance should match pattern with ext=?');
 }
 
 // TEST560: Valueless tag contributes 2 points to specificity
 function test560_valueless_tag_specificity() {
   const urn1 = TaggedUrn.fromString('cap:op=generate');
-  const urn2 = TaggedUrn.fromString('cap:op=generate;optimize');
-  const urn3 = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const urn2 = TaggedUrn.fromString('cap:generate;optimize');
+  const urn3 = TaggedUrn.fromString('cap:generate;ext=pdf');
 
   assertEqual(urn1.specificity(), 3, '1 exact = 3');
   assertEqual(urn2.specificity(), 5, '1 exact + 1 * = 3 + 2 = 5');
@@ -828,7 +828,7 @@ function test560_valueless_tag_specificity() {
 
 // TEST561: Valueless tags round-trip correctly (serialize as just key)
 function test561_valueless_tag_roundtrip() {
-  const original = 'cap:ext=pdf;op=generate;optimize;secure';
+  const original = 'cap:ext=pdf;generate;optimize;secure';
   const urn = TaggedUrn.fromString(original);
   const serialized = urn.toString();
   const reparsed = TaggedUrn.fromString(serialized);
@@ -861,9 +861,9 @@ function test563_empty_value_still_error() {
 
 // TEST564: Valueless tags (wildcard) accept any specific value
 function test564_valueless_tag_compatibility() {
-  const wildcard = TaggedUrn.fromString('cap:op=generate;ext');
-  const pdf = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-  const docx = TaggedUrn.fromString('cap:op=generate;ext=docx');
+  const wildcard = TaggedUrn.fromString('cap:generate;ext');
+  const pdf = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const docx = TaggedUrn.fromString('cap:generate;ext=docx');
 
   // Wildcard ext accepts both pdf and docx instances
   assert(wildcard.accepts(pdf), 'Wildcard ext should accept pdf');
@@ -881,7 +881,7 @@ function test565_valueless_numeric_key_still_rejected() {
     'Should reject numeric key'
   );
   assertThrows(
-    () => TaggedUrn.fromString('cap:op=generate;456'),
+    () => TaggedUrn.fromString('cap:generate;456'),
     ErrorCodes.NUMERIC_KEY,
     'Should reject numeric key'
   );
@@ -1149,7 +1149,7 @@ function test577_specificity_with_special_values() {
 
 // JS-only: Test op tag is used instead of deprecated action tag
 function testJsOnly_op_tag_rename() {
-  const cap = TaggedUrn.fromString('cap:op=generate;format=json');
+  const cap = TaggedUrn.fromString('cap:generate;format=json');
   assertEqual(cap.getTag('op'), 'generate', 'Should have op tag');
   assertEqual(cap.getTag('action'), undefined, 'Should not have action tag');
 
@@ -1166,7 +1166,7 @@ function testJsOnly_op_tag_rename() {
 
 // Test conformsToStr convenience method
 function testConformsToStr() {
-  const urn = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(urn.conformsToStr('cap:op=generate'), 'Should match subset pattern string');
   assert(!urn.conformsToStr('cap:op=extract'), 'Should not match conflicting pattern string');
 }
@@ -1174,15 +1174,15 @@ function testConformsToStr() {
 // Test acceptsStr convenience method
 function testAcceptsStr() {
   const pattern = TaggedUrn.fromString('cap:op=generate');
-  assert(pattern.acceptsStr('cap:op=generate;ext=pdf'), 'Should accept more specific instance string');
+  assert(pattern.acceptsStr('cap:generate;ext=pdf'), 'Should accept more specific instance string');
   assert(!pattern.acceptsStr('cap:op=extract'), 'Should not accept conflicting instance string');
 }
 
 // Test canonical static method
 function testCanonical() {
   assertEqual(
-    TaggedUrn.canonical('cap:op=generate;ext=pdf;target=thumbnail'),
-    'cap:ext=pdf;op=generate;target=thumbnail',
+    TaggedUrn.canonical('cap:generate;ext=pdf;target=thumbnail'),
+    'cap:ext=pdf;generate;target=thumbnail',
     'Should return canonical form'
   );
 }
@@ -1190,7 +1190,7 @@ function testCanonical() {
 // Test canonicalOption static method
 function testCanonicalOption() {
   assertEqual(
-    TaggedUrn.canonicalOption('cap:op=generate;ext=pdf'),
+    TaggedUrn.canonicalOption('cap:generate;ext=pdf'),
     'cap:ext=pdf;op=generate',
     'Should return canonical form for valid input'
   );
@@ -1345,7 +1345,7 @@ module.exports = { runTests };
 
 // TEST578: Equivalent URNs with identical tag sets
 (() => {
-  const a = TaggedUrn.fromString('cap:op=generate;ext=pdf');
+  const a = TaggedUrn.fromString('cap:generate;ext=pdf');
   const b = TaggedUrn.fromString('cap:ext=pdf;op=generate');
   assert(a.isEquivalent(b), 'TEST578: Equivalent should be true');
   assert(b.isEquivalent(a), 'TEST578: Equivalent should be symmetric');
@@ -1377,8 +1377,8 @@ module.exports = { runTests };
 
 // TEST582: Equivalent implies comparable
 (() => {
-  const a = TaggedUrn.fromString('cap:op=test;ext=pdf');
-  const b = TaggedUrn.fromString('cap:op=test;ext=pdf');
+  const a = TaggedUrn.fromString('cap:test;ext=pdf');
+  const b = TaggedUrn.fromString('cap:test;ext=pdf');
   assert(a.isEquivalent(b), 'TEST582: Should be equivalent');
   assert(a.isComparable(b), 'TEST582: Equivalent implies comparable');
 })();
@@ -1422,7 +1422,7 @@ module.exports = { runTests };
     .soloTag('ext')
     .soloTag('quality')
     .build();
-  assertEqual(urn.toString(), 'cap:ext;op=convert;quality', 'TEST593: toString with wildcards');
+  assertEqual(urn.toString(), 'cap:ext;convert;quality', 'TEST593: toString with wildcards');
   assertEqual(urn.specificity(), 7, 'TEST593: specificity');
 })();
 

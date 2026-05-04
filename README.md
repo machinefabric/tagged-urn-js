@@ -26,8 +26,8 @@ npm install tagged-urn
 const { TaggedUrn, TaggedUrnBuilder, UrnMatcher } = require('tagged-urn');
 
 // Create from string
-const urn = TaggedUrn.fromString('cap:op=generate;ext=pdf');
-console.log(urn.toString()); // "cap:ext=pdf;op=generate"
+const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
+console.log(urn.toString()); // "cap:ext=pdf;generate"
 
 // Use builder pattern
 const built = new TaggedUrnBuilder()
@@ -43,10 +43,10 @@ console.log(urn.conformsTo(request)); // true
 const urns = [
   TaggedUrn.fromString('cap:op=*'),
   TaggedUrn.fromString('cap:op=generate'),
-  TaggedUrn.fromString('cap:op=generate;ext=pdf')
+  TaggedUrn.fromString('cap:generate;ext=pdf')
 ];
 const best = UrnMatcher.findBestMatch(urns, request);
-console.log(best.toString()); // "cap:ext=pdf;op=generate" (most specific)
+console.log(best.toString()); // "cap:ext=pdf;generate" (most specific)
 ```
 
 ## API Reference
