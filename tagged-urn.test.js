@@ -115,7 +115,7 @@ function test505_builder_with_prefix() {
 
 // TEST506: Verify unquoted values are normalized to lowercase
 function test506_unquoted_values_lowercased() {
-  const urn = TaggedUrn.fromString('cap:ext=pdf;generate;in=media:;out=media:;target=thumbnail');
+  const urn = TaggedUrn.fromString('cap:ext=pdf;generate;target=thumbnail');
 
   // Keys are always lowercase
   assert(urn.hasMarkerTag('generate'), 'Should have generate marker (key lowercased)');
@@ -126,8 +126,9 @@ function test506_unquoted_values_lowercased() {
   assertEqual(urn.getTag('EXT'), 'pdf', 'Should lookup with uppercase key');
   assertEqual(urn.getTag('Ext'), 'pdf', 'Should lookup with mixed case key');
 
-  // Normalized URN equals explicitly lowercase URN
-  const urn2 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
+  // Tag order in the source string does not affect canonical form —
+  // parsed URNs sort tags alphabetically before serializing.
+  const urn2 = TaggedUrn.fromString('cap:target=thumbnail;ext=pdf;generate');
   assertEqual(urn.toString(), urn2.toString(), 'Should produce same canonical form');
   assert(urn.equals(urn2), 'Should be equal after normalization');
 }
@@ -319,13 +320,16 @@ function test520_tag_matching() {
   const request1 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
   assert(cap.conformsTo(request1), 'Should match exact request');
 
-  const request2 = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  // Subset pattern: pattern with fewer constraints (only marker
+  // `generate`). Instance has all of pattern's constraints plus more.
+  const request2 = TaggedUrn.fromString('cap:generate');
   assert(cap.conformsTo(request2), 'Should match subset request');
 
   const request3 = TaggedUrn.fromString('cap:ext=*');
   assert(cap.conformsTo(request3), 'Should match wildcard request');
 
-  const request4 = TaggedUrn.fromString('cap:extract;in=media:;out=media:');
+  // Pattern requires marker `extract` which instance lacks.
+  const request4 = TaggedUrn.fromString('cap:extract');
   assert(!cap.conformsTo(request4), 'Should not match conflicting value');
 }
 
@@ -353,20 +357,21 @@ function test521_matching_case_sensitive_values() {
 
 // TEST522: Verify handling of missing tags in conformsTo semantics
 function test522_missing_tag_handling() {
-  const instance = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  const instance = TaggedUrn.fromString('cap:generate');
 
   // Pattern with tag that instance doesn't have: NO MATCH
   const pattern1 = TaggedUrn.fromString('cap:ext=pdf');
   assert(!instance.conformsTo(pattern1), 'Should NOT match when instance missing pattern-required tag');
 
-  // Pattern missing tag = no constraint: MATCH
+  // Subset pattern (pattern requires only `generate` marker, which
+  // instance has): MATCH.
   const instance2 = TaggedUrn.fromString('cap:generate;ext=pdf');
-  const pattern2 = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  const pattern2 = TaggedUrn.fromString('cap:generate');
   assert(instance2.conformsTo(pattern2), 'Should match subset pattern');
 
-  // ? means no constraint
-  const pattern3 = TaggedUrn.fromString('cap:ext=?');
-  assert(instance.conformsTo(pattern3), 'Pattern ext=? should match instance without ext');
+  // ?x means no constraint
+  const pattern3 = TaggedUrn.fromString('cap:?ext');
+  assert(instance.conformsTo(pattern3), 'Pattern ?ext should match instance without ext');
 
   // * means must-have-any
   const pattern4 = TaggedUrn.fromString('cap:ext=*');
@@ -377,21 +382,31 @@ function test522_missing_tag_handling() {
 // SPECIFICITY (TEST523)
 // ============================================================================
 
-// TEST523: Verify graded specificity scoring
+// TEST523: Verify six-form per-tag specificity ladder.
+//   ?x        : 0
+//   x?=v      : 1
+//   x (=x=*)  : 2
+//   x!=v      : 3
+//   x=v       : 4
+//   !x        : 5
 function test523_specificity() {
-  const cap1 = TaggedUrn.fromString('cap:general');           // 1 marker
-  const cap2 = TaggedUrn.fromString('cap:ext=pdf');           // 1 exact
-  const cap3 = TaggedUrn.fromString('cap:gen;ext=pdf');       // 1 marker + 1 exact
-  const cap4 = TaggedUrn.fromString('cap:ext=?');             // 1 unspecified
-  const cap5 = TaggedUrn.fromString('cap:ext=!');             // 1 must-not-have
+  const cap1 = TaggedUrn.fromString('cap:general');     // bare marker -> 2
+  const cap2 = TaggedUrn.fromString('cap:ext=pdf');     // exact -> 4
+  const cap3 = TaggedUrn.fromString('cap:gen;ext=pdf'); // marker(2) + exact(4)
+  const cap4 = TaggedUrn.fromString('cap:?ext');        // ?x -> 0
+  const cap5 = TaggedUrn.fromString('cap:!ext');        // !x -> 5
+  const cap6 = TaggedUrn.fromString('cap:ext?=pdf');    // x?=v -> 1
+  const cap7 = TaggedUrn.fromString('cap:ext!=pdf');    // x!=v -> 3
 
-  assertEqual(cap1.specificity(), 2, '* should have specificity 2');
-  assertEqual(cap2.specificity(), 3, 'exact should have specificity 3');
-  assertEqual(cap3.specificity(), 5, '* + exact should have specificity 5');
-  assertEqual(cap4.specificity(), 0, '? should have specificity 0');
-  assertEqual(cap5.specificity(), 1, '! should have specificity 1');
+  assertEqual(cap1.specificity(), 2, 'bare marker -> 2');
+  assertEqual(cap2.specificity(), 4, 'exact -> 4');
+  assertEqual(cap3.specificity(), 6, 'marker + exact -> 6');
+  assertEqual(cap4.specificity(), 0, '?x -> 0');
+  assertEqual(cap5.specificity(), 5, '!x -> 5');
+  assertEqual(cap6.specificity(), 1, 'x?=v -> 1');
+  assertEqual(cap7.specificity(), 3, 'x!=v -> 3');
 
-  assert(cap2.isMoreSpecificThan(cap1), '3 > 2');
+  assert(cap2.isMoreSpecificThan(cap1), 'exact(4) > marker(2)');
 }
 
 // ============================================================================
@@ -830,7 +845,7 @@ function test559_valueless_tag_in_pattern() {
   assert(instanceMissing.conformsTo(patternOptional), 'Instance should match pattern with ext=?');
 }
 
-// TEST560: Valueless tag contributes 2 points to specificity
+// TEST560: Bare marker (=`x=*`) contributes 2 points; exact contributes 4.
 function test560_valueless_tag_specificity() {
   const urn1 = TaggedUrn.fromString('cap:generate');           // 1 marker
   const urn2 = TaggedUrn.fromString('cap:generate;optimize');  // 2 markers
@@ -838,7 +853,7 @@ function test560_valueless_tag_specificity() {
 
   assertEqual(urn1.specificity(), 2, '1 marker = 2');
   assertEqual(urn2.specificity(), 4, '2 markers = 2 + 2 = 4');
-  assertEqual(urn3.specificity(), 5, '1 marker + 1 exact = 2 + 3 = 5');
+  assertEqual(urn3.specificity(), 6, '1 marker + 1 exact = 2 + 4 = 6');
 }
 
 // TEST561: Valueless tags round-trip correctly (serialize as just key)
@@ -938,18 +953,20 @@ function test566_whitespace_in_input_rejected() {
 // SPECIAL VALUES ?, !, * (TEST567-TEST577)
 // ============================================================================
 
-// TEST567: ? parses as unspecified value
+// TEST567: All three input aliases (?x, x?, x=?) parse to stored
+// value "?" and serialize as the canonical prefix form `?x`.
 function test567_unspecified_question_mark_parsing() {
   const urn = TaggedUrn.fromString('cap:ext=?');
   assertEqual(urn.getTag('ext'), '?', 'Should parse ? as unspecified');
-  assertEqual(urn.toString(), 'cap:ext=?', 'Should serialize as key=?');
+  assertEqual(urn.toString(), 'cap:?ext', 'Canonical of x=? is the prefix form ?x');
 }
 
-// TEST568: ! parses as must-not-have value
+// TEST568: All three input aliases (!x, x!, x=!) parse to stored
+// value "!" and serialize as the canonical prefix form `!x`.
 function test568_must_not_have_exclamation_parsing() {
   const urn = TaggedUrn.fromString('cap:ext=!');
   assertEqual(urn.getTag('ext'), '!', 'Should parse ! as must-not-have');
-  assertEqual(urn.toString(), 'cap:ext=!', 'Should serialize as key=!');
+  assertEqual(urn.toString(), 'cap:!ext', 'Canonical of x=! is the prefix form !x');
 }
 
 // TEST569: Pattern with K=? matches any instance (with or without K)
@@ -1136,26 +1153,29 @@ function test576_compatibility_with_special_values() {
   assert(unspecified.accepts(missing), '? accepts missing');
 }
 
-// TEST577: Verify graded specificity with special values
+// TEST577: Verify graded specificity with the six-form ladder.
+//   ?x=0, x?=v=1, x=*=2, x!=v=3, x=v=4, !x=5
 function test577_specificity_with_special_values() {
-  const exact = TaggedUrn.fromString('cap:a=x;b=y;c=z'); // 3*3 = 9
-  const mustHave = TaggedUrn.fromString('cap:a;b;c'); // 3*2 = 6
-  const mustNot = TaggedUrn.fromString('cap:a=!;b=!;c=!'); // 3*1 = 3
-  const unspecified = TaggedUrn.fromString('cap:a=?;b=?;c=?'); // 3*0 = 0
-  const mixed = TaggedUrn.fromString('cap:a=x;b;c=!;d=?'); // 3+2+1+0 = 6
+  const exact = TaggedUrn.fromString('cap:a=x;b=y;c=z');     // 3 * 4 = 12
+  const mustHave = TaggedUrn.fromString('cap:a;b;c');         // 3 * 2 = 6
+  const mustNot = TaggedUrn.fromString('cap:!a;!b;!c');       // 3 * 5 = 15
+  const unspecified = TaggedUrn.fromString('cap:?a;?b;?c');   // 3 * 0 = 0
+  // mixed: a=x (4) + b (2) + !c (5) + ?d (0) = 11
+  const mixed = TaggedUrn.fromString('cap:!c;?d;a=x;b');
 
-  assertEqual(exact.specificity(), 9, '3 exact = 9');
+  assertEqual(exact.specificity(), 12, '3 exact = 12');
   assertEqual(mustHave.specificity(), 6, '3 must-have = 6');
-  assertEqual(mustNot.specificity(), 3, '3 must-not = 3');
+  assertEqual(mustNot.specificity(), 15, '3 must-not = 15');
   assertEqual(unspecified.specificity(), 0, '3 unspecified = 0');
-  assertEqual(mixed.specificity(), 6, 'mixed = 6');
+  assertEqual(mixed.specificity(), 11, 'mixed = 11');
 
-  // Test specificity tuples
-  assertDeepEqual(exact.specificityTuple(), [3, 0, 0], 'exact tuple');
-  assertDeepEqual(mustHave.specificityTuple(), [0, 3, 0], 'mustHave tuple');
-  assertDeepEqual(mustNot.specificityTuple(), [0, 0, 3], 'mustNot tuple');
-  assertDeepEqual(unspecified.specificityTuple(), [0, 0, 0], 'unspecified tuple');
-  assertDeepEqual(mixed.specificityTuple(), [1, 1, 1], 'mixed tuple');
+  // Five-tuple counts: (must_not_have, exact, present_not_value,
+  // must_have_any, absent_or_not_value).
+  assertDeepEqual(exact.specificityTuple(), [0, 3, 0, 0, 0], 'exact tuple');
+  assertDeepEqual(mustHave.specificityTuple(), [0, 0, 0, 3, 0], 'mustHave tuple');
+  assertDeepEqual(mustNot.specificityTuple(), [3, 0, 0, 0, 0], 'mustNot tuple');
+  assertDeepEqual(unspecified.specificityTuple(), [0, 0, 0, 0, 0], 'unspecified tuple');
+  assertDeepEqual(mixed.specificityTuple(), [1, 1, 0, 1, 0], 'mixed tuple');
 }
 
 // ============================================================================

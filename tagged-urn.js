@@ -28,15 +28,34 @@ const ErrorCodes = {
   WHITESPACE_IN_INPUT: 12
 };
 
-// Parser states for state machine
+// Parser states for state machine.
+//
+// The parser handles six tag forms — the canonical alphabet of the
+// constraint truth table:
+//
+//   | Authored                | Canonical | Stored value | Score | Reading                                  |
+//   |-------------------------|-----------|--------------|------:|------------------------------------------|
+//   | `?x` ≡ `x?`             | `?x`      | "?"          |     0 | no constraint                            |
+//   | `?x=v` ≡ `x?=v`         | `x?=v`    | "?=v"        |     1 | absent OR (present and not v)            |
+//   | `x` ≡ `x=*`             | `x`       | "*"          |     2 | present with any value                   |
+//   | `!x=v` ≡ `x!=v`         | `x!=v`    | "!=v"        |     3 | present and not v                        |
+//   | `x=v`                   | `x=v`     | "v"          |     4 | present and exactly v (`v ∉ {?, !, *}`)  |
+//   | `!x` ≡ `x!`             | `!x`      | "!"          |     5 | absent (must-not-have)                   |
+//
+// Disallowed (hard parse errors): `?x?`, `?x?=v`, `!x!=v`, `?!x`,
+// `!?x`, `?x=*`, `!x=*`, mixed prefix+infix.
 const ParseState = {
   EXPECTING_KEY: 0,
-  IN_KEY: 1,
-  EXPECTING_VALUE: 2,
-  IN_UNQUOTED_VALUE: 3,
-  IN_QUOTED_VALUE: 4,
-  IN_QUOTED_VALUE_ESCAPE: 5,
-  EXPECTING_SEMI_OR_END: 6
+  AFTER_PREFIX_QUESTION: 1,
+  AFTER_PREFIX_BANG: 2,
+  IN_KEY: 3,
+  IN_KEY_AFTER_QUESTION: 4,
+  IN_KEY_AFTER_BANG: 5,
+  EXPECTING_VALUE: 6,
+  IN_UNQUOTED_VALUE: 7,
+  IN_QUOTED_VALUE: 8,
+  IN_QUOTED_VALUE_ESCAPE: 9,
+  EXPECTING_SEMI_OR_END: 10
 };
 
 /**
@@ -80,78 +99,96 @@ function quoteValue(value) {
   return result;
 }
 
+// Form classification — six canonical forms plus Missing.
+const Form = {
+  MISSING: 0,
+  NO_CONSTRAINT: 1,        // "?"
+  ABSENT_OR_NOT_VALUE: 2,  // "?=v"
+  MUST_HAVE_ANY: 3,        // "*"
+  PRESENT_NOT_VALUE: 4,    // "!=v"
+  EXACT: 5,
+  MUST_NOT_HAVE: 6,        // "!"
+};
+
+// Classify a stored value. Returns { kind, raw } — raw is the inner
+// v for ?=v and !=v, the literal value for exact, and '' otherwise.
+function classifyForm(value) {
+  if (value === undefined) return { kind: Form.MISSING, raw: '' };
+  if (value === '?') return { kind: Form.NO_CONSTRAINT, raw: '' };
+  if (value === '*') return { kind: Form.MUST_HAVE_ANY, raw: '' };
+  if (value === '!') return { kind: Form.MUST_NOT_HAVE, raw: '' };
+  if (value.startsWith('?=')) return { kind: Form.ABSENT_OR_NOT_VALUE, raw: value.slice(2) };
+  if (value.startsWith('!=')) return { kind: Form.PRESENT_NOT_VALUE, raw: value.slice(2) };
+  return { kind: Form.EXACT, raw: value };
+}
+
 /**
- * Check if instance value matches pattern constraint
+ * Per-tag truth-table specificity score. Applied uniformly to any
+ * stored tag value. Missing keys score 0; the caller filters them.
  *
- * Full cross-product truth table:
- * | Instance | Pattern | Match? | Reason |
- * |----------|---------|--------|--------|
- * | (none)   | (none)  | OK     | No constraint either side |
- * | (none)   | K=?     | OK     | Pattern doesn't care |
- * | (none)   | K=!     | OK     | Pattern wants absent, it is |
- * | (none)   | K=*     | NO     | Pattern wants present |
- * | (none)   | K=v     | NO     | Pattern wants exact value |
- * | K=?      | (any)   | OK     | Instance doesn't care |
- * | K=!      | (none)  | OK     | Symmetric: absent |
- * | K=!      | K=?     | OK     | Pattern doesn't care |
- * | K=!      | K=!     | OK     | Both want absent |
- * | K=!      | K=*     | NO     | Conflict: absent vs present |
- * | K=!      | K=v     | NO     | Conflict: absent vs value |
- * | K=*      | (none)  | OK     | Pattern has no constraint |
- * | K=*      | K=?     | OK     | Pattern doesn't care |
- * | K=*      | K=!     | NO     | Conflict: present vs absent |
- * | K=*      | K=*     | OK     | Both accept any presence |
- * | K=*      | K=v     | OK     | Instance accepts any, v is fine |
- * | K=v      | (none)  | OK     | Pattern has no constraint |
- * | K=v      | K=?     | OK     | Pattern doesn't care |
- * | K=v      | K=!     | NO     | Conflict: value vs absent |
- * | K=v      | K=*     | OK     | Pattern wants any, v satisfies |
- * | K=v      | K=v     | OK     | Exact match |
- * | K=v      | K=w     | NO     | Value mismatch (v≠w) |
+ *   "?"          -> 0   (no constraint)
+ *   starts "?="  -> 1   (absent or not v)
+ *   "*"          -> 2   (must-have-any)
+ *   starts "!="  -> 3   (present and not v)
+ *   "!"          -> 5   (must-not-have)
+ *   otherwise    -> 4   (exact value)
+ */
+function scoreTagValue(value) {
+  if (value === '?') return 0;
+  if (value === '*') return 2;
+  if (value === '!') return 5;
+  if (value.startsWith('?=')) return 1;
+  if (value.startsWith('!=')) return 3;
+  return 4;
+}
+
+/**
+ * Check if instance value matches pattern constraint, per the truth
+ * table over the six canonical forms (plus Missing). See
+ * capdag/docs/04-PREDICATES.md §2.5 for the cross-product table.
  */
 function valuesMatch(inst, patt) {
-  // Pattern has no constraint (no entry or explicit ?)
-  if (patt === undefined || patt === '?') {
-    return true;
+  const i = classifyForm(inst);
+  const p = classifyForm(patt);
+
+  if (p.kind === Form.MISSING || p.kind === Form.NO_CONSTRAINT) return true;
+  if (i.kind === Form.NO_CONSTRAINT) return true;
+
+  if (p.kind === Form.MUST_NOT_HAVE) {
+    return i.kind === Form.MISSING
+        || i.kind === Form.MUST_NOT_HAVE
+        || i.kind === Form.ABSENT_OR_NOT_VALUE;
   }
 
-  // Instance doesn't care (explicit ?)
-  if (inst === '?') {
-    return true;
+  if (p.kind === Form.MUST_HAVE_ANY) {
+    return !(i.kind === Form.MISSING
+          || i.kind === Form.ABSENT_OR_NOT_VALUE
+          || i.kind === Form.MUST_NOT_HAVE);
   }
 
-  // Pattern: must-not-have (!)
-  if (patt === '!') {
-    if (inst === undefined) {
-      return true; // Instance absent, pattern wants absent
-    }
-    if (inst === '!') {
-      return true; // Both say absent
-    }
-    return false; // Instance has value, pattern wants absent
+  if (p.kind === Form.PRESENT_NOT_VALUE) {
+    if (i.kind === Form.MISSING
+     || i.kind === Form.ABSENT_OR_NOT_VALUE
+     || i.kind === Form.MUST_NOT_HAVE) return false;
+    if (i.kind === Form.MUST_HAVE_ANY || i.kind === Form.PRESENT_NOT_VALUE) return true;
+    return i.raw !== p.raw;
   }
 
-  // Instance: must-not-have conflicts with pattern wanting value
-  if (inst === '!') {
-    return false; // Conflict: absent vs value or present
+  if (p.kind === Form.ABSENT_OR_NOT_VALUE) {
+    if (i.kind === Form.MISSING
+     || i.kind === Form.ABSENT_OR_NOT_VALUE
+     || i.kind === Form.MUST_NOT_HAVE) return true;
+    if (i.kind === Form.MUST_HAVE_ANY || i.kind === Form.PRESENT_NOT_VALUE) return true;
+    return i.raw !== p.raw;
   }
 
-  // Pattern: must-have-any (*)
-  if (patt === '*') {
-    if (inst === undefined) {
-      return false; // Instance missing, pattern wants present
-    }
-    return true; // Instance has value, pattern wants any
-  }
-
-  // Pattern: exact value
-  if (inst === undefined) {
-    return false; // Instance missing, pattern wants value
-  }
-  if (inst === '*') {
-    return true; // Instance accepts any, pattern's value is fine
-  }
-  return inst === patt; // Both have values, must match exactly
+  // p.kind === Form.EXACT
+  if (i.kind === Form.MISSING
+   || i.kind === Form.ABSENT_OR_NOT_VALUE
+   || i.kind === Form.MUST_NOT_HAVE) return false;
+  if (i.kind === Form.MUST_HAVE_ANY) return true;
+  if (i.kind === Form.PRESENT_NOT_VALUE) return i.raw !== p.raw;
+  return i.raw === p.raw;
 }
 
 /**
@@ -222,8 +259,29 @@ class TaggedUrn {
     let state = ParseState.EXPECTING_KEY;
     let currentKey = '';
     let currentValue = '';
+    // qualifier: null | '?' | '!' for the tag currently being parsed.
+    let qualifier = null;
     const chars = [...tagsPart];
     let pos = 0;
+
+    const canonicalNoValue = (q) => {
+      if (q === null) return '*';
+      if (q === '?') return '?';
+      if (q === '!') return '!';
+      throw new Error(`invalid qualifier ${q}`);
+    };
+
+    const canonicalizeValue = (q, key, value) => {
+      if (q === null) return value;
+      if (value === '*' || value === '?' || value === '!') {
+        throw new TaggedUrnError(
+          ErrorCodes.INVALID_CHARACTER,
+          `qualifier '${q}' on key '${key}' cannot combine with sigil value '${value}': ` +
+          `use a real value or drop the qualifier`
+        );
+      }
+      return `${q}=${value}`;
+    };
 
     const finishTag = () => {
       if (currentKey === '') {
@@ -232,13 +290,9 @@ class TaggedUrn {
       if (currentValue === '') {
         throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${currentKey}'`);
       }
-
-      // Check for duplicate keys
       if (tags.hasOwnProperty(currentKey)) {
         throw new TaggedUrnError(ErrorCodes.DUPLICATE_KEY, `Duplicate tag key: ${currentKey}`);
       }
-
-      // Validate key cannot be purely numeric
       if (/^\d+$/.test(currentKey)) {
         throw new TaggedUrnError(ErrorCodes.NUMERIC_KEY, `Tag key cannot be purely numeric: ${currentKey}`);
       }
@@ -246,6 +300,7 @@ class TaggedUrn {
       tags[currentKey] = currentValue;
       currentKey = '';
       currentValue = '';
+      qualifier = null;
     };
 
     while (pos < chars.length) {
@@ -254,14 +309,32 @@ class TaggedUrn {
       switch (state) {
         case ParseState.EXPECTING_KEY:
           if (c === ';') {
-            // Empty segment, skip
             pos++;
             continue;
+          } else if (c === '?') {
+            qualifier = '?';
+            state = ParseState.AFTER_PREFIX_QUESTION;
+          } else if (c === '!') {
+            qualifier = '!';
+            state = ParseState.AFTER_PREFIX_BANG;
           } else if (isValidKeyChar(c)) {
             currentKey += c.toLowerCase();
             state = ParseState.IN_KEY;
           } else {
             throw new TaggedUrnError(ErrorCodes.INVALID_CHARACTER, `invalid character '${c}' at position ${pos}`);
+          }
+          break;
+
+        case ParseState.AFTER_PREFIX_QUESTION:
+        case ParseState.AFTER_PREFIX_BANG:
+          if (isValidKeyChar(c)) {
+            currentKey += c.toLowerCase();
+            state = ParseState.IN_KEY;
+          } else {
+            throw new TaggedUrnError(
+              ErrorCodes.INVALID_CHARACTER,
+              `expected key character after '${qualifier}' qualifier, got '${c}' at position ${pos}`
+            );
           }
           break;
 
@@ -271,18 +344,51 @@ class TaggedUrn {
               throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
             }
             state = ParseState.EXPECTING_VALUE;
+          } else if (c === '?') {
+            if (qualifier !== null) {
+              throw new TaggedUrnError(
+                ErrorCodes.INVALID_CHARACTER,
+                `duplicate qualifier '?' at position ${pos}: prefix and infix qualifiers cannot be combined on key '${currentKey}'`
+              );
+            }
+            qualifier = '?';
+            state = ParseState.IN_KEY_AFTER_QUESTION;
+          } else if (c === '!') {
+            if (qualifier !== null) {
+              throw new TaggedUrnError(
+                ErrorCodes.INVALID_CHARACTER,
+                `duplicate qualifier '!' at position ${pos}: prefix and infix qualifiers cannot be combined on key '${currentKey}'`
+              );
+            }
+            qualifier = '!';
+            state = ParseState.IN_KEY_AFTER_BANG;
           } else if (c === ';') {
-            // Value-less tag: treat as wildcard
             if (currentKey === '') {
               throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
             }
-            currentValue = '*';
+            currentValue = canonicalNoValue(qualifier);
             finishTag();
             state = ParseState.EXPECTING_KEY;
           } else if (isValidKeyChar(c)) {
             currentKey += c.toLowerCase();
           } else {
             throw new TaggedUrnError(ErrorCodes.INVALID_CHARACTER, `invalid character '${c}' in key at position ${pos}`);
+          }
+          break;
+
+        case ParseState.IN_KEY_AFTER_QUESTION:
+        case ParseState.IN_KEY_AFTER_BANG:
+          if (c === '=') {
+            state = ParseState.EXPECTING_VALUE;
+          } else if (c === ';') {
+            currentValue = canonicalNoValue(qualifier);
+            finishTag();
+            state = ParseState.EXPECTING_KEY;
+          } else {
+            throw new TaggedUrnError(
+              ErrorCodes.INVALID_CHARACTER,
+              `expected '=' or ';' after '${currentKey}${qualifier}' suffix qualifier, got '${c}' at position ${pos}`
+            );
           }
           break;
 
@@ -301,6 +407,7 @@ class TaggedUrn {
 
         case ParseState.IN_UNQUOTED_VALUE:
           if (c === ';') {
+            currentValue = canonicalizeValue(qualifier, currentKey, currentValue);
             finishTag();
             state = ParseState.EXPECTING_KEY;
           } else if (isValidUnquotedValueChar(c)) {
@@ -316,7 +423,6 @@ class TaggedUrn {
           } else if (c === '\\') {
             state = ParseState.IN_QUOTED_VALUE_ESCAPE;
           } else {
-            // Any character allowed in quoted value, preserve case
             currentValue += c;
           }
           break;
@@ -332,6 +438,7 @@ class TaggedUrn {
 
         case ParseState.EXPECTING_SEMI_OR_END:
           if (c === ';') {
+            currentValue = canonicalizeValue(qualifier, currentKey, currentValue);
             finishTag();
             state = ParseState.EXPECTING_KEY;
           } else {
@@ -343,24 +450,30 @@ class TaggedUrn {
       pos++;
     }
 
-    // Handle end of input
     switch (state) {
       case ParseState.IN_UNQUOTED_VALUE:
       case ParseState.EXPECTING_SEMI_OR_END:
+        currentValue = canonicalizeValue(qualifier, currentKey, currentValue);
         finishTag();
         break;
       case ParseState.EXPECTING_KEY:
-        // Valid - trailing semicolon or empty input after prefix
         break;
       case ParseState.IN_QUOTED_VALUE:
       case ParseState.IN_QUOTED_VALUE_ESCAPE:
         throw new TaggedUrnError(ErrorCodes.UNTERMINATED_QUOTE, `unterminated quote at position ${pos}`);
+      case ParseState.AFTER_PREFIX_QUESTION:
+      case ParseState.AFTER_PREFIX_BANG:
+        throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `qualifier '${qualifier}' at end of input has no key`);
       case ParseState.IN_KEY:
-        // Value-less tag at end: treat as wildcard
         if (currentKey === '') {
           throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
         }
-        currentValue = '*';
+        currentValue = canonicalNoValue(qualifier);
+        finishTag();
+        break;
+      case ParseState.IN_KEY_AFTER_QUESTION:
+      case ParseState.IN_KEY_AFTER_BANG:
+        currentValue = canonicalNoValue(qualifier);
         finishTag();
         break;
       case ParseState.EXPECTING_VALUE:
@@ -428,29 +541,29 @@ class TaggedUrn {
       return `${this.prefix}:`;
     }
 
-    // Sort keys for canonical representation
     const sortedKeys = Object.keys(this.tags).sort();
 
-    // Build tag string with smart quoting
+    // Build canonical serialization. Stored values map to:
+    //   "*"       -> "k"      (bare key, must-have-any)
+    //   "?"       -> "?k"     (prefix qualifier, no constraint)
+    //   "!"       -> "!k"     (prefix qualifier, must-not-have)
+    //   "?=v"     -> "k?=v"   (infix qualifier, absent or not v)
+    //   "!=v"     -> "k!=v"   (infix qualifier, present and not v)
+    //   exact "v" -> "k=v" / "k=\"v\"" (with quoting if needed)
     const tagParts = sortedKeys.map(key => {
       const value = this.tags[key];
-      switch (value) {
-        case '*':
-          // Valueless sugar: key
-          return key;
-        case '?':
-          // Explicit: key=?
-          return `${key}=?`;
-        case '!':
-          // Explicit: key=!
-          return `${key}=!`;
-        default:
-          if (needsQuoting(value)) {
-            return `${key}=${quoteValue(value)}`;
-          } else {
-            return `${key}=${value}`;
-          }
+      if (value === '*') return key;
+      if (value === '?') return `?${key}`;
+      if (value === '!') return `!${key}`;
+      if (value.startsWith('?=')) {
+        const raw = value.slice(2);
+        return needsQuoting(raw) ? `${key}?=${quoteValue(raw)}` : `${key}?=${raw}`;
       }
+      if (value.startsWith('!=')) {
+        const raw = value.slice(2);
+        return needsQuoting(raw) ? `${key}!=${quoteValue(raw)}` : `${key}!=${raw}`;
+      }
+      return needsQuoting(value) ? `${key}=${quoteValue(value)}` : `${key}=${value}`;
     });
 
     return `${this.prefix}:${tagParts.join(';')}`;
@@ -609,63 +722,49 @@ class TaggedUrn {
   }
 
   /**
-   * Calculate specificity score for URN matching
-   * More specific URNs have higher scores and are preferred
-   * Graded scoring:
-   * - K=v (exact value): 3 points (most specific)
-   * - K=* (must-have-any): 2 points
-   * - K=! (must-not-have): 1 point
-   * - K=? (unspecified): 0 points (least specific)
+   * Calculate specificity score for URN matching.
+   * Sum of per-tag truth-table scores. Per-tag ladder:
+   *
+   *   "?"            -> 0   (no constraint)
+   *   starts "?="    -> 1   (absent or not v)
+   *   "*"            -> 2   (must-have-any)
+   *   starts "!="    -> 3   (present and not v)
+   *   exact value    -> 4   (exact match)
+   *   "!"            -> 5   (must-not-have)
    *
    * @returns {number} The specificity score
    */
   specificity() {
     let score = 0;
     for (const value of Object.values(this.tags)) {
-      switch (value) {
-        case '?':
-          score += 0;
-          break;
-        case '!':
-          score += 1;
-          break;
-        case '*':
-          score += 2;
-          break;
-        default:
-          score += 3; // exact value
-      }
+      score += scoreTagValue(value);
     }
     return score;
   }
 
   /**
-   * Get specificity as a tuple for tie-breaking
-   * Returns [exact_count, must_have_any_count, must_not_count]
-   * Compare tuples lexicographically when sum scores are equal
-   *
-   * @returns {number[]} The specificity tuple [exact, mustHaveAny, mustNot]
+   * Get specificity as a tuple for tie-breaking, ordered from highest
+   * score to lowest:
+   *   [must_not_have, exact, present_not_value, must_have_any, absent_or_not_value]
+   * Compare tuples lexicographically when sum scores are equal.
+   * @returns {number[]}
    */
   specificityTuple() {
+    let mustNotHave = 0;
     let exact = 0;
+    let presentNotValue = 0;
     let mustHaveAny = 0;
-    let mustNot = 0;
+    let absentOrNotValue = 0;
     for (const value of Object.values(this.tags)) {
-      switch (value) {
-        case '?':
-          // 0 points, not counted
-          break;
-        case '!':
-          mustNot++;
-          break;
-        case '*':
-          mustHaveAny++;
-          break;
-        default:
-          exact++;
-      }
+      const { kind } = classifyForm(value);
+      if (kind === Form.MUST_NOT_HAVE) mustNotHave++;
+      else if (kind === Form.EXACT) exact++;
+      else if (kind === Form.PRESENT_NOT_VALUE) presentNotValue++;
+      else if (kind === Form.MUST_HAVE_ANY) mustHaveAny++;
+      else if (kind === Form.ABSENT_OR_NOT_VALUE) absentOrNotValue++;
+      // NO_CONSTRAINT and MISSING contribute nothing
     }
-    return [exact, mustHaveAny, mustNot];
+    return [mustNotHave, exact, presentNotValue, mustHaveAny, absentOrNotValue];
   }
 
   /**
@@ -979,5 +1078,7 @@ module.exports = {
   TaggedUrnBuilder,
   UrnMatcher,
   TaggedUrnError,
-  ErrorCodes
+  ErrorCodes,
+  scoreTagValue,
+  valuesMatch
 };

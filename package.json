@@ -28,5 +28,5 @@
   "scripts": {
     "test": "node tagged-urn.test.js"
   },
-  "version": "0.38.99"
+  "version": "0.39.102"
 }
