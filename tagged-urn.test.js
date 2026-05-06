@@ -1419,8 +1419,8 @@ module.exports = { runTests };
 (() => {
   const urn = new TaggedUrnBuilder('cap')
     .tag('op', 'convert')
-    .soloTag('ext')
-    .soloTag('quality')
+    .marker('ext')
+    .marker('quality')
     .build();
   assertEqual(urn.toString(), 'cap:ext;convert;quality', 'TEST593: toString with wildcards');
   assertEqual(urn.specificity(), 7, 'TEST593: specificity');
@@ -1437,7 +1437,7 @@ module.exports = { runTests };
   const wildcardPattern = new TaggedUrnBuilder('cap')
     .tag('op', 'generate')
     .tag('target', 'thumbnail')
-    .soloTag('ext')
+    .marker('ext')
     .build();
   
   assert(specificInstance.conformsTo(generalPattern), 'TEST595: Should conform to general');

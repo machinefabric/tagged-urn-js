@@ -857,7 +857,7 @@ class TaggedUrnBuilder {
    * @param {string} key - The tag key
    * @returns {TaggedUrnBuilder} This builder for chaining
    */
-  soloTag(key) {
+  marker(key) {
     this.tags[key.toLowerCase()] = '*';
     return this;
   }
