@@ -31,18 +31,18 @@ console.log(urn.toString()); // "cap:ext=pdf;generate"
 
 // Use builder pattern
 const built = new TaggedUrnBuilder()
-  .tag('op', 'extract')
+  .marker('extract')
   .tag('target', 'metadata')
   .build();
 
 // Matching
-const request = TaggedUrn.fromString('cap:op=generate');
+const request = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
 console.log(urn.conformsTo(request)); // true
 
 // Find best match
 const urns = [
-  TaggedUrn.fromString('cap:op=*'),
-  TaggedUrn.fromString('cap:op=generate'),
+  TaggedUrn.fromString('cap:generate'),
+  TaggedUrn.fromString('cap:generate;in=media:;out=media:'),
   TaggedUrn.fromString('cap:generate;ext=pdf')
 ];
 const best = UrnMatcher.findBestMatch(urns, request);
@@ -75,7 +75,7 @@ Fluent builder for constructing Tagged URNs:
 
 ```javascript
 const urn = new TaggedUrnBuilder()
-  .tag('op', 'generate')
+  .marker('generate')
   .tag('format', 'json')
   .build();
 ```
@@ -117,7 +117,7 @@ This implementation strictly follows the Tagged URN rules. See `RULES.md` for co
 
 ### Key Rules Summary:
 
-1. **Case Insensitive** - `cap:OP=Generate` == `cap:op=generate`
+1. **Case Insensitive** - `cap:Format=JSON` == `cap:format=JSON` (key is normalized; value preserved)
 2. **Order Independent** - `cap:a=1;b=2` == `cap:b=2;a=1`
 3. **Prefix Required** - Must start with `cap:`
 4. **Semicolon Separated** - Tags separated by `;`
@@ -152,7 +152,7 @@ Works in both Node.js and browsers:
 ```html
 <script src="tagged-urn.js"></script>
 <script>
-const urn = TaggedUrn.fromString('cap:op=generate');
+const urn = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
 console.log(urn.toString());
 </script>
 ```

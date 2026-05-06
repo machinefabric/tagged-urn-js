@@ -481,6 +481,20 @@ class TaggedUrn {
   }
 
   /**
+   * Check whether a marker tag (a tag whose value is "*") is present at
+   * the given key. Equivalent to hasTag(tagName, "*") but expresses
+   * authorial intent: this tag is present as a marker (a wildcard-valued
+   * tag that serializes as just the key), not as a key=value pair.
+   * Example: cap:constrained;... has marker tag "constrained".
+   *
+   * @param {string} tagName - The marker key
+   * @returns {boolean} Whether the tag exists with value "*"
+   */
+  hasMarkerTag(tagName) {
+    return this.tags[tagName.toLowerCase()] === '*';
+  }
+
+  /**
    * Create a new tagged URN with an added or updated tag
    * Key is normalized to lowercase; value is preserved as-is
    *
