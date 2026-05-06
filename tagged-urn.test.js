@@ -78,8 +78,10 @@ function test502_custom_prefix() {
 
 // TEST503: Verify prefix is case-insensitive (CAP, cap, Cap all equal)
 function test503_prefix_case_insensitive() {
+  // Three URNs differing only in prefix case must all normalize to the
+  // same `cap` prefix and be equal once parsed.
   const urn1 = TaggedUrn.fromString('CAP:test');
-  const urn2 = TaggedUrn.fromString('cap:in=media:;out=media:;test');
+  const urn2 = TaggedUrn.fromString('cap:test');
   const urn3 = TaggedUrn.fromString('Cap:test');
 
   assertEqual(urn1.getPrefix(), 'cap', 'Should normalize CAP to cap');
@@ -116,13 +118,13 @@ function test506_unquoted_values_lowercased() {
   const urn = TaggedUrn.fromString('cap:ext=pdf;generate;in=media:;out=media:;target=thumbnail');
 
   // Keys are always lowercase
-  assert(urn.hasMarkerTag('generate'), 'Should normalize op to lowercase');
+  assert(urn.hasMarkerTag('generate'), 'Should have generate marker (key lowercased)');
   assertEqual(urn.getTag('ext'), 'pdf', 'Should normalize ext to lowercase');
   assertEqual(urn.getTag('target'), 'thumbnail', 'Should normalize target to lowercase');
 
-  // Key lookup is case-insensitive
-  assertEqual(urn.getTag('OP'), 'generate', 'Should lookup with uppercase key');
-  assertEqual(urn.getTag('Op'), 'generate', 'Should lookup with mixed case key');
+  // Key lookup is case-insensitive (try uppercase variants of an existing key)
+  assertEqual(urn.getTag('EXT'), 'pdf', 'Should lookup with uppercase key');
+  assertEqual(urn.getTag('Ext'), 'pdf', 'Should lookup with mixed case key');
 
   // Normalized URN equals explicitly lowercase URN
   const urn2 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
@@ -329,18 +331,24 @@ function test520_tag_matching() {
 
 // TEST521: Verify value matching is case-sensitive
 function test521_matching_case_sensitive_values() {
-  const cap1 = TaggedUrn.fromString('cap:ext=pdf;generate;in=media:;out=media:;target=thumbnail');
+  // Same tag content, written with mixed case. Unquoted keys + values
+  // are lowercased on parse, so these two URN strings produce equal
+  // URNs.
+  const cap1 = TaggedUrn.fromString('cap:Ext=PDF;Generate;Target=Thumbnail');
   const cap2 = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
 
-  // Unquoted values are lowercased, so these should be equal
   assert(cap1.equals(cap2), 'URNs with unquoted case differences should be equal');
   assert(cap1.conformsTo(cap2), 'Should match case-insensitively');
   assert(cap2.conformsTo(cap1), 'Should match case-insensitively');
 
-  // Case-insensitive tag lookup
-  assertEqual(cap1.getTag('OP'), 'generate', 'Should lookup with uppercase key');
-  assert(cap1.hasTag('op', 'generate'), 'hasTag should match with lowercase key');
-  assert(cap1.hasTag('OP', 'generate'), 'hasTag should match with uppercase key');
+  // Case-insensitive marker tag lookup (key is normalized).
+  assert(cap1.hasMarkerTag('GENERATE'), 'Should match marker with uppercase key');
+  assert(cap1.hasMarkerTag('Generate'), 'Should match marker with mixed case key');
+
+  // Case-insensitive keyed tag lookup.
+  assertEqual(cap1.getTag('EXT'), 'pdf', 'Should lookup keyed tag with uppercase key');
+  assert(cap1.hasTag('ext', 'pdf'), 'hasTag should match with lowercase key');
+  assert(cap1.hasTag('EXT', 'pdf'), 'hasTag should match with uppercase key');
 }
 
 // TEST522: Verify handling of missing tags in conformsTo semantics
@@ -371,11 +379,11 @@ function test522_missing_tag_handling() {
 
 // TEST523: Verify graded specificity scoring
 function test523_specificity() {
-  const cap1 = TaggedUrn.fromString('cap:general'); // * = 2
-  const cap2 = TaggedUrn.fromString('cap:generate;in=media:;out=media:'); // exact = 3
-  const cap3 = TaggedUrn.fromString('cap:op;ext=pdf'); // * + exact = 2 + 3 = 5
-  const cap4 = TaggedUrn.fromString('cap:op=?'); // ? = 0
-  const cap5 = TaggedUrn.fromString('cap:op=!'); // ! = 1
+  const cap1 = TaggedUrn.fromString('cap:general');           // 1 marker
+  const cap2 = TaggedUrn.fromString('cap:ext=pdf');           // 1 exact
+  const cap3 = TaggedUrn.fromString('cap:gen;ext=pdf');       // 1 marker + 1 exact
+  const cap4 = TaggedUrn.fromString('cap:ext=?');             // 1 unspecified
+  const cap5 = TaggedUrn.fromString('cap:ext=!');             // 1 must-not-have
 
   assertEqual(cap1.specificity(), 2, '* should have specificity 2');
   assertEqual(cap2.specificity(), 3, 'exact should have specificity 3');
@@ -393,13 +401,13 @@ function test523_specificity() {
 // TEST524: Verify builder creates correct URN
 function test524_builder() {
   const cap = new TaggedUrnBuilder('cap')
-    .tag('op', 'generate')
+    .marker('generate')
     .tag('target', 'thumbnail')
     .tag('ext', 'pdf')
     .tag('output', 'binary')
     .build();
 
-  assert(cap.hasMarkerTag('generate'), 'Should build with op tag');
+  assert(cap.hasMarkerTag('generate'), 'Should build with generate marker');
   assertEqual(cap.getTag('output'), 'binary', 'Should build with output tag');
 }
 
@@ -417,39 +425,46 @@ function test525_builder_preserves_case() {
 
 // TEST526: Verify directional accepts for URN matching
 function test526_compatibility() {
-  // General pattern accepts specific instance
-  const general = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  // General pattern (single marker) accepts a more specific instance
+  // (same marker plus extra tags). The reverse direction is rejected
+  // because the specific pattern requires `ext=pdf` which the general
+  // instance does not have.
+  const general = TaggedUrn.fromString('cap:generate');
   const specific = TaggedUrn.fromString('cap:generate;ext=pdf');
   assert(general.accepts(specific), 'General pattern accepts specific instance');
   assert(!specific.accepts(general), 'Specific does not accept general');
 
-  // Wildcard pattern accepts any value
+  // Wildcard pattern accepts any value for the same key
   const wildcard = TaggedUrn.fromString('cap:generate;format=*');
   const withFormat = TaggedUrn.fromString('cap:generate;format=json');
   assert(wildcard.accepts(withFormat), 'Wildcard accepts specific value');
 
-  // Different op values: neither accepts the other
+  // Different markers: neither accepts the other (both require their
+  // own marker to be present on the other side, and neither has it).
   const cap1 = TaggedUrn.fromString('cap:generate;ext=pdf');
-  const cap3 = TaggedUrn.fromString('cap:extract;image;in=media:;out=media:');
-  assert(!cap1.accepts(cap3), 'Different op should not accept');
-  assert(!cap3.accepts(cap1), 'Different op should not accept (reverse)');
+  const cap3 = TaggedUrn.fromString('cap:extract;image');
+  assert(!cap1.accepts(cap3), 'Different marker should not accept');
+  assert(!cap3.accepts(cap1), 'Different marker should not accept (reverse)');
 }
 
 // TEST527: Verify UrnMatcher finds best match among candidates
 function test527_best_match() {
+  // Three candidates of increasing specificity. The request asks for any
+  // URN with the `generate` marker; the matcher must pick the most
+  // specific candidate that satisfies the request.
   const caps = [
-    TaggedUrn.fromString('cap:op'),
-    TaggedUrn.fromString('cap:generate;in=media:;out=media:'),
-    TaggedUrn.fromString('cap:generate;ext=pdf')
+    TaggedUrn.fromString('cap:generate'),                  // 1 marker = 2
+    TaggedUrn.fromString('cap:generate;ext=pdf'),          // 1 marker + 1 exact = 5
+    TaggedUrn.fromString('cap:generate;ext=pdf;target=thumb') // 1 marker + 2 exact = 8
   ];
 
-  const request = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  const request = TaggedUrn.fromString('cap:generate');
   const best = UrnMatcher.findBestMatch(caps, request);
-  assertEqual(best.toString(), 'cap:ext=pdf;generate;in=media:;out=media:', 'Should find most specific match');
+  assertEqual(best.toString(), 'cap:ext=pdf;generate;target=thumb', 'Should find most specific match');
 
   const matches = UrnMatcher.findAllMatches(caps, request);
   assertEqual(matches.length, 3, 'Should find all matches');
-  assertEqual(matches[0].toString(), 'cap:ext=pdf;generate;in=media:;out=media:', 'Should sort by specificity');
+  assertEqual(matches[0].toString(), 'cap:ext=pdf;generate;target=thumb', 'Should sort by specificity');
 }
 
 // ============================================================================
@@ -458,13 +473,13 @@ function test527_best_match() {
 
 // TEST528: Verify merge and subset operations
 function test528_merge_and_subset() {
-  // Merge
-  const cap1 = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  // Merge: union of both tag sets, sorted alphabetically by key.
+  const cap1 = TaggedUrn.fromString('cap:generate');
   const cap2 = TaggedUrn.fromString('cap:ext=pdf;output=binary');
   const merged = cap1.merge(cap2);
   assertEqual(merged.toString(), 'cap:ext=pdf;generate;output=binary', 'Should merge correctly');
 
-  // Subset
+  // Subset keeps only the specified keys ('type' is absent so only 'ext' survives).
   const subset = merged.subset(['type', 'ext']);
   assertEqual(subset.toString(), 'cap:ext=pdf', 'Should create subset correctly');
 }
@@ -817,13 +832,13 @@ function test559_valueless_tag_in_pattern() {
 
 // TEST560: Valueless tag contributes 2 points to specificity
 function test560_valueless_tag_specificity() {
-  const urn1 = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
-  const urn2 = TaggedUrn.fromString('cap:generate;optimize');
-  const urn3 = TaggedUrn.fromString('cap:generate;ext=pdf');
+  const urn1 = TaggedUrn.fromString('cap:generate');           // 1 marker
+  const urn2 = TaggedUrn.fromString('cap:generate;optimize');  // 2 markers
+  const urn3 = TaggedUrn.fromString('cap:generate;ext=pdf');   // 1 marker + 1 exact
 
-  assertEqual(urn1.specificity(), 3, '1 exact = 3');
-  assertEqual(urn2.specificity(), 5, '1 exact + 1 * = 3 + 2 = 5');
-  assertEqual(urn3.specificity(), 6, '2 exact = 3 + 3 = 6');
+  assertEqual(urn1.specificity(), 2, '1 marker = 2');
+  assertEqual(urn2.specificity(), 4, '2 markers = 2 + 2 = 4');
+  assertEqual(urn3.specificity(), 5, '1 marker + 1 exact = 2 + 3 = 5');
 }
 
 // TEST561: Valueless tags round-trip correctly (serialize as just key)
@@ -1147,17 +1162,17 @@ function test577_specificity_with_special_values() {
 // JS-ONLY TESTS (no Rust equivalent)
 // ============================================================================
 
-// JS-only: Test op tag is used instead of deprecated action tag
+// JS-only: Test marker tags are authored without an `action` key
 function testJsOnly_op_tag_rename() {
   const cap = TaggedUrn.fromString('cap:generate;format=json');
-  assert(cap.hasMarkerTag('generate'), 'Should have op tag');
+  assert(cap.hasMarkerTag('generate'), 'Should have generate marker');
   assertEqual(cap.getTag('action'), undefined, 'Should not have action tag');
 
   const built = new TaggedUrnBuilder('cap')
-    .tag('op', 'transform')
+    .marker('transform')
     .tag('type', 'data')
     .build();
-  assert(built.hasMarkerTag('transform'), 'Builder should set op tag');
+  assert(built.hasMarkerTag('transform'), 'Builder should set transform marker');
 }
 
 // ============================================================================
@@ -1167,15 +1182,19 @@ function testJsOnly_op_tag_rename() {
 // Test conformsToStr convenience method
 function testConformsToStr() {
   const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
-  assert(urn.conformsToStr('cap:generate;in=media:;out=media:'), 'Should match subset pattern string');
-  assert(!urn.conformsToStr('cap:extract;in=media:;out=media:'), 'Should not match conflicting pattern string');
+  // Pattern asks for the `generate` marker; instance has it (plus ext=pdf).
+  assert(urn.conformsToStr('cap:generate'), 'Should match subset pattern string');
+  // Pattern asks for the `extract` marker; instance has `generate`, not `extract`.
+  assert(!urn.conformsToStr('cap:extract'), 'Should not match conflicting pattern string');
 }
 
 // Test acceptsStr convenience method
 function testAcceptsStr() {
-  const pattern = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+  const pattern = TaggedUrn.fromString('cap:generate');
+  // Instance has the required `generate` marker plus an extra ext=pdf tag.
   assert(pattern.acceptsStr('cap:generate;ext=pdf'), 'Should accept more specific instance string');
-  assert(!pattern.acceptsStr('cap:extract;in=media:;out=media:'), 'Should not accept conflicting instance string');
+  // Instance lacks the required `generate` marker.
+  assert(!pattern.acceptsStr('cap:extract'), 'Should not accept conflicting instance string');
 }
 
 // Test canonical static method
@@ -1191,7 +1210,7 @@ function testCanonical() {
 function testCanonicalOption() {
   assertEqual(
     TaggedUrn.canonicalOption('cap:generate;ext=pdf'),
-    'cap:ext=pdf;generate;in=media:;out=media:',
+    'cap:ext=pdf;generate',
     'Should return canonical form for valid input'
   );
   assertEqual(TaggedUrn.canonicalOption(null), null, 'Should return null for null');
