@@ -4,6 +4,7 @@
 
 const {
   TaggedUrn,
+  TaggedUrnRelationKind,
   TaggedUrnBuilder,
   UrnMatcher,
   TaggedUrnError,
@@ -1493,6 +1494,37 @@ module.exports = { runTests };
     ErrorCodes.EMPTY_TAG,
     'Builder should reject empty value'
   );
+})();
+
+// TEST596: Empty delta preserves a more specific concrete instance.
+(() => {
+  const base = TaggedUrn.fromString('media:');
+  const target = TaggedUrn.fromString('media:');
+  const runtime = TaggedUrn.fromString('media:image;png');
+  const delta = target.deltaFrom(base);
+  assertEqual(delta.relationKind, TaggedUrnRelationKind.EQUIVALENT, 'TEST596: empty delta should be equivalent');
+  assert(delta.isEmpty(), 'TEST596: empty delta should have no edits');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:image;png', 'TEST596: empty delta should preserve runtime refinement');
+})();
+
+// TEST597: Incomparable replacement rewrites only declared coordinates.
+(() => {
+  const base = TaggedUrn.fromString('media:markdown;textable');
+  const target = TaggedUrn.fromString('media:html;textable');
+  const runtime = TaggedUrn.fromString('media:lang=en;markdown;textable');
+  const delta = target.deltaFrom(base);
+  assertEqual(delta.relationKind, TaggedUrnRelationKind.INCOMPARABLE, 'TEST597: markdown -> html should be incomparable');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:html;lang=en;textable', 'TEST597: unrelated runtime refinements must be preserved');
+})();
+
+// TEST598: Comparable removal drops only the declared key.
+(() => {
+  const base = TaggedUrn.fromString('media:image;png');
+  const target = TaggedUrn.fromString('media:image');
+  const runtime = TaggedUrn.fromString('media:author=me;image;png');
+  const delta = target.deltaFrom(base);
+  assertEqual(delta.relationKind, TaggedUrnRelationKind.COMPARABLE, 'TEST598: image;png -> image should be comparable');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:author=me;image', 'TEST598: only the declared key should be removed');
 })();
 
 console.log('All tests passed!');

@@ -110,6 +110,25 @@ const Form = {
   MUST_NOT_HAVE: 6,        // "!"
 };
 
+const TaggedUrnRelationKind = Object.freeze({
+  EQUIVALENT: 'equivalent',
+  COMPARABLE: 'comparable',
+  INCOMPARABLE: 'incomparable',
+});
+
+class TaggedUrnCoordinateDelta {
+  constructor(prefix, removed = {}, added = {}, relationKind = TaggedUrnRelationKind.EQUIVALENT) {
+    this.prefix = prefix.toLowerCase();
+    this.removed = { ...removed };
+    this.added = { ...added };
+    this.relationKind = relationKind;
+  }
+
+  isEmpty() {
+    return Object.keys(this.removed).length === 0 && Object.keys(this.added).length === 0;
+  }
+}
+
 // Classify a stored value. Returns { kind, raw } — raw is the inner
 // v for ?=v and !=v, the literal value for exact, and '' otherwise.
 function classifyForm(value) {
@@ -829,6 +848,94 @@ class TaggedUrn {
   }
 
   /**
+   * Compute the coordinate-space delta from `base` to `this`.
+   *
+   * Delta is defined over explicit canonical coordinates, not semantic
+   * equivalence classes. Equivalent URNs may still yield a non-empty delta if
+   * one side explicitly authors no-op coordinates.
+   *
+   * @param {TaggedUrn} base
+   * @returns {TaggedUrnCoordinateDelta}
+   * @throws {TaggedUrnError} If prefixes do not match
+   */
+  deltaFrom(base) {
+    if (!base) {
+      throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot derive delta from null URN');
+    }
+    if (this.prefix !== base.prefix) {
+      throw new TaggedUrnError(
+        ErrorCodes.PREFIX_MISMATCH,
+        `Cannot compare URNs with different prefixes: '${base.prefix}' vs '${this.prefix}'`
+      );
+    }
+
+    const relationKind = this.isEquivalent(base)
+      ? TaggedUrnRelationKind.EQUIVALENT
+      : (this.isComparable(base)
+        ? TaggedUrnRelationKind.COMPARABLE
+        : TaggedUrnRelationKind.INCOMPARABLE);
+
+    const removed = {};
+    const added = {};
+    const allKeys = new Set([
+      ...Object.keys(base.tags),
+      ...Object.keys(this.tags),
+    ]);
+
+    for (const key of allKeys) {
+      const baseValue = Object.prototype.hasOwnProperty.call(base.tags, key)
+        ? base.tags[key]
+        : undefined;
+      const targetValue = Object.prototype.hasOwnProperty.call(this.tags, key)
+        ? this.tags[key]
+        : undefined;
+      if (baseValue === targetValue) {
+        continue;
+      }
+      if (baseValue !== undefined) {
+        removed[key] = baseValue;
+      }
+      if (targetValue !== undefined) {
+        added[key] = targetValue;
+      }
+    }
+
+    return new TaggedUrnCoordinateDelta(this.prefix, removed, added, relationKind);
+  }
+
+  /**
+   * Apply a coordinate-space delta to this tagged URN.
+   *
+   * Keys named in `removed` are deleted regardless of their current value,
+   * then keys named in `added` are inserted. Unrelated coordinates are
+   * preserved.
+   *
+   * @param {TaggedUrnCoordinateDelta} delta
+   * @returns {TaggedUrn}
+   * @throws {TaggedUrnError} If prefixes do not match
+   */
+  applyDelta(delta) {
+    if (!delta) {
+      throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot apply null delta');
+    }
+    if (this.prefix !== delta.prefix) {
+      throw new TaggedUrnError(
+        ErrorCodes.PREFIX_MISMATCH,
+        `Cannot apply delta with different prefix: '${delta.prefix}' vs '${this.prefix}'`
+      );
+    }
+
+    const nextTags = { ...this.tags };
+    for (const key of Object.keys(delta.removed)) {
+      delete nextTags[key];
+    }
+    for (const [key, value] of Object.entries(delta.added)) {
+      nextTags[key] = value;
+    }
+    return new TaggedUrn(this.prefix, nextTags, true);
+  }
+
+  /**
    * Create a new URN with a specific tag set to wildcard
    *
    * @param {string} key - The tag key to set to wildcard
@@ -1075,6 +1182,8 @@ class UrnMatcher {
 // Export for CommonJS
 module.exports = {
   TaggedUrn,
+  TaggedUrnCoordinateDelta,
+  TaggedUrnRelationKind,
   TaggedUrnBuilder,
   UrnMatcher,
   TaggedUrnError,
