@@ -1184,7 +1184,7 @@ function test577_specificity_with_special_values() {
 // ============================================================================
 
 // JS-only: Test marker tags are authored without an `action` key
-function testJsOnly_op_tag_rename() {
+function test0001_JsOnly_op_tag_rename() {
   const cap = TaggedUrn.fromString('cap:generate;format=json');
   assert(cap.hasMarkerTag('generate'), 'Should have generate marker');
   assertEqual(cap.getTag('action'), undefined, 'Should not have action tag');
@@ -1201,7 +1201,7 @@ function testJsOnly_op_tag_rename() {
 // ============================================================================
 
 // Test conformsToStr convenience method
-function testConformsToStr() {
+function test0002_ConformsToStr() {
   const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
   // Pattern asks for the `generate` marker; instance has it (plus ext=pdf).
   assert(urn.conformsToStr('cap:generate'), 'Should match subset pattern string');
@@ -1210,7 +1210,7 @@ function testConformsToStr() {
 }
 
 // Test acceptsStr convenience method
-function testAcceptsStr() {
+function test0003_AcceptsStr() {
   const pattern = TaggedUrn.fromString('cap:generate');
   // Instance has the required `generate` marker plus an extra ext=pdf tag.
   assert(pattern.acceptsStr('cap:generate;ext=pdf'), 'Should accept more specific instance string');
@@ -1219,7 +1219,7 @@ function testAcceptsStr() {
 }
 
 // Test canonical static method
-function testCanonical() {
+function test0004_Canonical() {
   assertEqual(
     TaggedUrn.canonical('cap:generate;ext=pdf;target=thumbnail'),
     'cap:ext=pdf;generate;target=thumbnail',
@@ -1228,7 +1228,7 @@ function testCanonical() {
 }
 
 // Test canonicalOption static method
-function testCanonicalOption() {
+function test0005_CanonicalOption() {
   assertEqual(
     TaggedUrn.canonicalOption('cap:generate;ext=pdf'),
     'cap:ext=pdf;generate',
@@ -1335,12 +1335,12 @@ function runTests() {
     ['TEST576', test576_compatibility_with_special_values],
     ['TEST577', test577_specificity_with_special_values],
     // JS-only tests
-    ['JS-ONLY: op tag rename', testJsOnly_op_tag_rename],
+    ['JS-ONLY: op tag rename', test0001_JsOnly_op_tag_rename],
     // Convenience method tests
-    ['conformsToStr', testConformsToStr],
-    ['acceptsStr', testAcceptsStr],
-    ['canonical', testCanonical],
-    ['canonicalOption', testCanonicalOption],
+    ['conformsToStr', test0002_ConformsToStr],
+    ['acceptsStr', test0003_AcceptsStr],
+    ['canonical', test0004_Canonical],
+    ['canonicalOption', test0005_CanonicalOption],
   ];
 
   console.log('Running Tagged URN JavaScript tests...\n');
