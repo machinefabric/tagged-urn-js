@@ -2,9 +2,9 @@
 
 **Total Tests:** 82
 
-**Numbered Tests:** 77
+**Numbered Tests:** 82
 
-**Unnumbered Tests:** 5
+**Unnumbered Tests:** 0
 
 **Numbered Tests Missing Descriptions:** 0
 
@@ -16,6 +16,11 @@ This catalog lists all tests in the JS codebase.
 
 | Test # | Function Name | Description | File |
 |--------|---------------|-------------|------|
+| test0001 | `test0001_JsOnly_op_tag_rename` | JS-only: Test marker tags are authored without an `action` key | tagged-urn.test.js:1187 |
+| test0002 | `test0002_ConformsToStr` | Test conformsToStr convenience method | tagged-urn.test.js:1204 |
+| test0003 | `test0003_AcceptsStr` | Test acceptsStr convenience method | tagged-urn.test.js:1213 |
+| test0004 | `test0004_Canonical` | Test canonical static method | tagged-urn.test.js:1222 |
+| test0005 | `test0005_CanonicalOption` | Test canonicalOption static method | tagged-urn.test.js:1231 |
 | test501 | `test501_tagged_urn_creation` | TEST501: Verify basic URN creation from string with multiple tags | tagged-urn.test.js:64 |
 | test502 | `test502_custom_prefix` | TEST502: Verify custom prefixes work and tags are sorted alphabetically | tagged-urn.test.js:73 |
 | test503 | `test503_prefix_case_insensitive` | TEST503: Verify prefix is case-insensitive (CAP, cap, Cap all equal) | tagged-urn.test.js:81 |
@@ -93,29 +98,11 @@ This catalog lists all tests in the JS codebase.
 | test575 | `test575_serialization_round_trip_special_values` | TEST575: All special values round-trip correctly | tagged-urn.test.js:1109 |
 | test576 | `test576_compatibility_with_special_values` | TEST576: Bidirectional accepts with special values | tagged-urn.test.js:1126 |
 | test577 | `test577_specificity_with_special_values` | TEST577: Verify graded specificity with the six-form ladder. ?x=0, x?=v=1, x=*=2, x!=v=3, x=v=4, !x=5 | tagged-urn.test.js:1159 |
-| | | | |
-| unnumbered | `testAcceptsStr` | Test acceptsStr convenience method | tagged-urn.test.js:1213 |
-| unnumbered | `testCanonical` | Test canonical static method | tagged-urn.test.js:1222 |
-| unnumbered | `testCanonicalOption` | Test canonicalOption static method | tagged-urn.test.js:1231 |
-| unnumbered | `testConformsToStr` | Test conformsToStr convenience method | tagged-urn.test.js:1204 |
-| unnumbered | `testJsOnly_op_tag_rename` | JS-only: Test marker tags are authored without an `action` key | tagged-urn.test.js:1187 |
----
-
-## Unnumbered Tests
-
-The following tests are cataloged but do not currently participate in numeric test indexing.
-
-- `testAcceptsStr` — tagged-urn.test.js:1213
-- `testCanonical` — tagged-urn.test.js:1222
-- `testCanonicalOption` — tagged-urn.test.js:1231
-- `testConformsToStr` — tagged-urn.test.js:1204
-- `testJsOnly_op_tag_rename` — tagged-urn.test.js:1187
-
 ---
 
 *Generated from JS source tree*
 *Total tests: 82*
-*Total numbered tests: 77*
-*Total unnumbered tests: 5*
+*Total numbered tests: 82*
+*Total unnumbered tests: 0*
 *Total numbered tests missing descriptions: 0*
 *Total numbering mismatches: 0*
