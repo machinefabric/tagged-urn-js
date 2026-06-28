@@ -1410,7 +1410,7 @@ module.exports = { runTests };
 // TEST581: Incomparable URNs in different branches
 (() => {
   const pdf = TaggedUrn.fromString('media:pdf');
-  const txt = TaggedUrn.fromString('media:txt;textable');
+  const txt = TaggedUrn.fromString('media:enc=utf-8;txt');
   assert(!pdf.isComparable(txt), 'TEST581: Should not be comparable');
   assert(!txt.isComparable(pdf), 'TEST581: Should not be comparable (reverse)');
 })();
@@ -1509,12 +1509,12 @@ module.exports = { runTests };
 
 // TEST597: Incomparable replacement rewrites only declared coordinates.
 (() => {
-  const base = TaggedUrn.fromString('media:markdown;textable');
-  const target = TaggedUrn.fromString('media:html;textable');
-  const runtime = TaggedUrn.fromString('media:lang=en;markdown;textable');
+  const base = TaggedUrn.fromString('media:enc=utf-8;markdown');
+  const target = TaggedUrn.fromString('media:enc=utf-8;html');
+  const runtime = TaggedUrn.fromString('media:enc=utf-8;lang=en;markdown');
   const delta = target.deltaFrom(base);
   assertEqual(delta.relationKind, TaggedUrnRelationKind.INCOMPARABLE, 'TEST597: markdown -> html should be incomparable');
-  assertEqual(runtime.applyDelta(delta).toString(), 'media:html;lang=en;textable', 'TEST597: unrelated runtime refinements must be preserved');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:enc=utf-8;html;lang=en', 'TEST597: unrelated runtime refinements must be preserved');
 })();
 
 // TEST598: Comparable removal drops only the declared key.
