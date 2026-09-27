@@ -702,11 +702,16 @@ function test546_matching_semantics_request_wildcard() {
   assert(cap.conformsTo(request), 'Request wildcard should match');
 }
 
-// TEST547: Instance has wildcard - matches any pattern constraint
+// TEST547: An instance's wildcard promises presence, not the value asked for
+//
+// `ext=*` is "some ext". It does not satisfy a pattern asking for `ext=pdf` —
+// that would let a cap promising some ext stand in for one that produces a
+// pdf — while a pdf does satisfy a pattern asking for some ext.
 function test547_matching_semantics_cap_wildcard() {
   const cap = TaggedUrn.fromString('cap:generate;ext=*');
   const request = TaggedUrn.fromString('cap:generate;ext=pdf');
-  assert(cap.conformsTo(request), 'Cap wildcard should match');
+  assert(!cap.conformsTo(request), 'some ext does not satisfy ext=pdf');
+  assert(request.conformsTo(cap), 'ext=pdf satisfies some ext');
 }
 
 // TEST548: Instance and pattern have same key but different values - no match
@@ -819,16 +824,22 @@ function test557_valueless_tag_equivalence_to_wildcard() {
   assertEqual(wildcard.toString(), 'cap:ext', 'Wildcard should serialize as value-less');
 }
 
-// TEST558: Valueless tag (wildcard) matches any value
+// TEST558: A valueless tag promises presence, not a value
+//
+// `ext` says the key is there with SOME value. It used to satisfy any pattern
+// asking for a particular one — "decided later" — which made `ext` and
+// `ext=pdf` refine each other, so they counted as equivalent, and a candidate
+// promising only "some ext" was routed to a request needing a pdf. Refinement
+// is inclusion of what each form allows: every pdf is some ext, not the reverse.
 function test558_valueless_tag_matching() {
   const urn = TaggedUrn.fromString('cap:generate;ext');
   const requestPdf = TaggedUrn.fromString('cap:generate;ext=pdf');
   const requestDocx = TaggedUrn.fromString('cap:generate;ext=docx');
-  const requestAny = TaggedUrn.fromString('cap:generate;ext=anything');
 
-  assert(urn.conformsTo(requestPdf), 'Should match pdf');
-  assert(urn.conformsTo(requestDocx), 'Should match docx');
-  assert(urn.conformsTo(requestAny), 'Should match anything');
+  assert(!urn.conformsTo(requestPdf), 'some ext is not a promise of pdf');
+  assert(!urn.conformsTo(requestDocx), 'some ext is not a promise of docx');
+  assert(requestPdf.conformsTo(urn), 'a pdf is some ext');
+  assert(!urn.isEquivalent(requestPdf), 'ext and ext=pdf are different tag sets');
 }
 
 // TEST559: Pattern with valueless tag requires instance to have tag (any value)
@@ -987,7 +998,12 @@ function test569_question_mark_pattern_matches_anything() {
   assert(instanceMustNot.conformsTo(pattern), 'ext=! should match ext=?');
 }
 
-// TEST570: Instance with K=? matches any pattern constraint
+// TEST570: An instance with K=? promises nothing about K
+//
+// `?` is "no constraint", on either side. As an instance it used to satisfy
+// every pattern ("whatever the pattern wants"), which made refinement
+// non-transitive: missing ⪯ ?k ⪯ k=v, yet missing ⋠ k=v. It satisfies exactly
+// the patterns that ask for nothing.
 function test570_question_mark_in_instance() {
   const instance = TaggedUrn.fromString('cap:ext=?');
 
@@ -997,14 +1013,20 @@ function test570_question_mark_in_instance() {
   const patternQuestion = TaggedUrn.fromString('cap:ext=?');
   const patternMissing = TaggedUrn.fromString('cap:');
 
-  assert(instance.conformsTo(patternPdf), 'ext=? should match ext=pdf');
-  assert(instance.conformsTo(patternWildcard), 'ext=? should match ext=*');
-  assert(instance.conformsTo(patternMustNot), 'ext=? should match ext=!');
-  assert(instance.conformsTo(patternQuestion), 'ext=? should match ext=?');
-  assert(instance.conformsTo(patternMissing), 'ext=? should match (no ext)');
+  assert(!instance.conformsTo(patternPdf), 'ext=? promises no pdf');
+  assert(!instance.conformsTo(patternWildcard), 'ext=? promises no presence');
+  assert(!instance.conformsTo(patternMustNot), 'ext=? promises no absence');
+  assert(instance.conformsTo(patternQuestion), 'ext=? satisfies ext=?');
+  assert(instance.conformsTo(patternMissing), 'ext=? satisfies (no ext)');
 }
 
-// TEST571: Pattern with K=! requires instance to NOT have K
+// TEST571: Pattern with K=! requires the instance to SAY K is absent
+//
+// A key an instance does not mention is not a promise that it is absent: as a
+// pattern the same omission means "anything", and one form cannot mean two
+// things. `media:pdf` used to satisfy `media:pdf;!compressed` while
+// `media:pdf;compressed` satisfied `media:pdf` — and not the `!compressed`
+// pattern — so refinement was not transitive.
 function test571_must_not_have_pattern_requires_absent() {
   const pattern = TaggedUrn.fromString('cap:ext=!');
 
@@ -1013,7 +1035,7 @@ function test571_must_not_have_pattern_requires_absent() {
   const instanceWildcard = TaggedUrn.fromString('cap:ext=*');
   const instanceMustNot = TaggedUrn.fromString('cap:ext=!');
 
-  assert(instanceMissing.conformsTo(pattern), '(no ext) should match ext=!');
+  assert(!instanceMissing.conformsTo(pattern), '(no ext) does not promise ext is absent');
   assert(!instancePdf.conformsTo(pattern), 'ext=pdf should NOT match ext=!');
   assert(!instanceWildcard.conformsTo(pattern), 'ext=* should NOT match ext=!');
   assert(instanceMustNot.conformsTo(pattern), 'ext=! should match ext=!');
@@ -1037,6 +1059,10 @@ function test572_must_not_have_in_instance() {
 }
 
 // TEST573: Comprehensive test of all instance/pattern combinations
+//
+// Each form means the set of states it allows, on either side, and an instance
+// satisfies a pattern when its set is inside the pattern's (capdag/formal,
+// `tagMatch_iff_allows`).
 function test573_full_cross_product_matching() {
   function check(instanceStr, patternStr, expected, msg) {
     const inst = TaggedUrn.fromString(instanceStr);
@@ -1050,16 +1076,16 @@ function test573_full_cross_product_matching() {
   // Instance missing, Pattern variations
   check('cap:', 'cap:', true, '(none)/(none)');
   check('cap:', 'cap:k=?', true, '(none)/K=?');
-  check('cap:', 'cap:k=!', true, '(none)/K=!');
+  check('cap:', 'cap:k=!', false, '(none)/K=!');
   check('cap:', 'cap:k', false, '(none)/K=*');
   check('cap:', 'cap:k=v', false, '(none)/K=v');
 
   // Instance K=?, Pattern variations
   check('cap:k=?', 'cap:', true, 'K=?/(none)');
   check('cap:k=?', 'cap:k=?', true, 'K=?/K=?');
-  check('cap:k=?', 'cap:k=!', true, 'K=?/K=!');
-  check('cap:k=?', 'cap:k', true, 'K=?/K=*');
-  check('cap:k=?', 'cap:k=v', true, 'K=?/K=v');
+  check('cap:k=?', 'cap:k=!', false, 'K=?/K=!');
+  check('cap:k=?', 'cap:k', false, 'K=?/K=*');
+  check('cap:k=?', 'cap:k=v', false, 'K=?/K=v');
 
   // Instance K=!, Pattern variations
   check('cap:k=!', 'cap:', true, 'K=!/(none)');
@@ -1073,7 +1099,7 @@ function test573_full_cross_product_matching() {
   check('cap:k', 'cap:k=?', true, 'K=*/K=?');
   check('cap:k', 'cap:k=!', false, 'K=*/K=!');
   check('cap:k', 'cap:k', true, 'K=*/K=*');
-  check('cap:k', 'cap:k=v', true, 'K=*/K=v');
+  check('cap:k', 'cap:k=v', false, 'K=*/K=v');
 
   // Instance K=v, Pattern variations
   check('cap:k=v', 'cap:', true, 'K=v/(none)');
@@ -1088,8 +1114,11 @@ function test573_full_cross_product_matching() {
 function test574_mixed_special_values() {
   const pattern = TaggedUrn.fromString('cap:required;optional=?;forbidden=!;exact=pdf');
 
-  // Instance that satisfies all constraints
-  const goodInstance = TaggedUrn.fromString('cap:required=yes;optional=maybe;exact=pdf');
+  // Instance that satisfies all constraints — including stating that the
+  // forbidden key is absent, which leaving it out does not promise.
+  const goodInstance = TaggedUrn.fromString('cap:required=yes;optional=maybe;forbidden=!;exact=pdf');
+  const silentOnForbidden = TaggedUrn.fromString('cap:required=yes;optional=maybe;exact=pdf');
+  assert(!silentOnForbidden.conformsTo(pattern), 'saying nothing about forbidden is not saying it is absent');
   assert(goodInstance.conformsTo(pattern), 'Good instance should match');
 
   // Instance missing required tag
@@ -1135,7 +1164,7 @@ function test576_compatibility_with_special_values() {
   assert(!mustNot.accepts(specific) && !specific.accepts(mustNot), '! and specific do not accept each other');
   // ! accepted by ? (unspecified accepts anything)
   assert(unspecified.accepts(mustNot), '? accepts !');
-  assert(mustNot.accepts(unspecified), '! accepts ? (? is don\'t-care)');
+  assert(!mustNot.accepts(unspecified), '! does not accept ?: ? promises nothing about absence');
   // ! and missing: missing pattern has no constraint
   assert(missing.accepts(mustNot), 'empty pattern accepts !');
   // ! and !: mutual acceptance
@@ -1242,8 +1271,32 @@ function test0005_CanonicalOption() {
 // TEST RUNNER
 // ============================================================================
 
+// TEST599: every row of the proved model's table.
+//
+// The rules are proved in ../formal (Lean); this ties them to this mirror:
+// every row of ../formal/conformance.json (written by the model,
+// `lake exe conformance`) is parsed by this parser and must get the model's
+// verdict. The same table runs in every mirror.
+function test599_every_row_of_the_models_table() {
+  const table = JSON.parse(require('fs').readFileSync(
+    require('path').join(__dirname, '..', 'formal', 'conformance.json'), 'utf8'));
+  const wrong = [];
+  for (const row of table.refines) {
+    const a = TaggedUrn.fromString(row.instance);
+    const b = TaggedUrn.fromString(row.pattern);
+    if (a.conformsTo(b) !== row.refines) wrong.push(`${row.instance} ⪯ ${row.pattern}: model ${row.refines}`);
+    if (a.isEquivalent(b) !== row.equivalent) wrong.push(`${row.instance} ≡ ${row.pattern}: model ${row.equivalent}`);
+  }
+  for (const row of table.scores) {
+    if (TaggedUrn.fromString(row.urn).specificity() !== row.score) wrong.push(`specificity ${row.urn}: model ${row.score}`);
+  }
+  assert(table.refines.length > 4000 && table.scores.length > 60, 'the table is the full one');
+  assert(wrong.length === 0, `${wrong.length} answer(s) differ from the model, e.g. ${wrong.slice(0, 8).join('; ')}`);
+}
+
 function runTests() {
   const tests = [
+    ['TEST599', test599_every_row_of_the_models_table],
     // Parsing/Creation (TEST501-TEST518)
     ['TEST501', test501_tagged_urn_creation],
     ['TEST502', test502_custom_prefix],

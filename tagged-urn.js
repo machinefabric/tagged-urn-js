@@ -162,52 +162,57 @@ function scoreTagValue(value) {
 }
 
 /**
- * Check if instance value matches pattern constraint, per the truth
- * table over the six canonical forms (plus Missing). See
- * capdag/docs/04-PREDICATES.md §2.5 for the cross-product table.
+ * Whether an instance value satisfies a pattern constraint at one key.
+ *
+ * Every form has ONE meaning — the set of states the key may be in (absent,
+ * or present with some value) — and the same meaning on either side: the
+ * instance satisfies the pattern when every state it allows, the pattern
+ * allows too. This is the rule proved in capdag/formal (`tagMatch_iff_allows`),
+ * which is what makes refinement transitive and equivalence mean "the same
+ * tag set".
+ *
+ * The table it replaces gave some forms two meanings — a missing key was
+ * "anything" as a pattern and "absent" as an instance, and an instance-side
+ * `x` or `?x` was "whatever the pattern wants". So `media:ext` counted as
+ * equivalent to `media:ext=pdf`, and a candidate promising only "some ext"
+ * was routed to a request needing a pdf. The change only removes matches.
  */
 function valuesMatch(inst, patt) {
   const i = classifyForm(inst);
   const p = classifyForm(patt);
 
+  // A pattern that constrains nothing accepts every instance.
   if (p.kind === Form.MISSING || p.kind === Form.NO_CONSTRAINT) return true;
-  if (i.kind === Form.NO_CONSTRAINT) return true;
 
-  if (p.kind === Form.MUST_NOT_HAVE) {
-    return i.kind === Form.MISSING
-        || i.kind === Form.MUST_NOT_HAVE
-        || i.kind === Form.ABSENT_OR_NOT_VALUE;
+  switch (i.kind) {
+    // An instance that constrains nothing promises nothing, so it satisfies
+    // no pattern that asks for something.
+    case Form.MISSING:
+    case Form.NO_CONSTRAINT:
+      return false;
+    case Form.MUST_NOT_HAVE:
+      return p.kind === Form.MUST_NOT_HAVE || p.kind === Form.ABSENT_OR_NOT_VALUE;
+    case Form.ABSENT_OR_NOT_VALUE:
+      return p.kind === Form.ABSENT_OR_NOT_VALUE && i.raw === p.raw;
+    case Form.MUST_HAVE_ANY:
+      // Present with SOME value: not a promise of any particular one.
+      return p.kind === Form.MUST_HAVE_ANY;
+    case Form.PRESENT_NOT_VALUE:
+      if (p.kind === Form.MUST_HAVE_ANY) return true;
+      if (p.kind === Form.PRESENT_NOT_VALUE || p.kind === Form.ABSENT_OR_NOT_VALUE) {
+        return i.raw === p.raw;
+      }
+      return false;
+    case Form.EXACT:
+      if (p.kind === Form.MUST_HAVE_ANY) return true;
+      if (p.kind === Form.EXACT) return i.raw === p.raw;
+      if (p.kind === Form.PRESENT_NOT_VALUE || p.kind === Form.ABSENT_OR_NOT_VALUE) {
+        return i.raw !== p.raw;
+      }
+      return false;
+    default:
+      throw new Error(`unclassified form: ${inst}`);
   }
-
-  if (p.kind === Form.MUST_HAVE_ANY) {
-    return !(i.kind === Form.MISSING
-          || i.kind === Form.ABSENT_OR_NOT_VALUE
-          || i.kind === Form.MUST_NOT_HAVE);
-  }
-
-  if (p.kind === Form.PRESENT_NOT_VALUE) {
-    if (i.kind === Form.MISSING
-     || i.kind === Form.ABSENT_OR_NOT_VALUE
-     || i.kind === Form.MUST_NOT_HAVE) return false;
-    if (i.kind === Form.MUST_HAVE_ANY || i.kind === Form.PRESENT_NOT_VALUE) return true;
-    return i.raw !== p.raw;
-  }
-
-  if (p.kind === Form.ABSENT_OR_NOT_VALUE) {
-    if (i.kind === Form.MISSING
-     || i.kind === Form.ABSENT_OR_NOT_VALUE
-     || i.kind === Form.MUST_NOT_HAVE) return true;
-    if (i.kind === Form.MUST_HAVE_ANY || i.kind === Form.PRESENT_NOT_VALUE) return true;
-    return i.raw !== p.raw;
-  }
-
-  // p.kind === Form.EXACT
-  if (i.kind === Form.MISSING
-   || i.kind === Form.ABSENT_OR_NOT_VALUE
-   || i.kind === Form.MUST_NOT_HAVE) return false;
-  if (i.kind === Form.MUST_HAVE_ANY) return true;
-  if (i.kind === Form.PRESENT_NOT_VALUE) return i.raw !== p.raw;
-  return i.raw === p.raw;
 }
 
 /**
