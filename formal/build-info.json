@@ -1,0 +1,26 @@
+{
+  "build_key": "827a011baf7767d5976c9c995b52e1431db4e27934f2158af8cac59f1ea99abd",
+  "lean_version": "4.34.1",
+  "lean_githash": "5045d0056413266e57c625dcd7c365b10e377c52",
+  "bir_version": 3,
+  "adapter_version": 1,
+  "lungo_version": "1.65.2807",
+  "runtime_abi": 1,
+  "worker_identity": "0587064dd2f5b65f8d77fefae9b7a41737221883cc74030f7cd7469534700252",
+  "input_digests": {
+    "TaggedUrn/Constraint.lean": "3cb5e897ae54194e4aa4723c780a1f89dac0c690214380466189354824757cce",
+    "TaggedUrn/Exec.lean": "70a0fd49506097586de6dcbf7cb4f3df60d2ee66356004eacc46b5610f0b719d",
+    "TaggedUrn/Sorted.lean": "d87ebb8b1c51c1355e1f36f58227d21c6c7e213e8dcccc3679736b921cd98a46",
+    "TaggedUrn/Urn.lean": "f1d82390b05b93b96a46dddcf70033199035902036a77402ed232febd2af8559",
+    "lake-manifest.json": "9f9ad981ff1de025bb2f5f98c753f2cdad63c29b5fb5063d18664af5c8d6deb4",
+    "lakefile.toml": "339b574de2949b141e2fcd301464c4144dc3de55e179f91a30e4c2ac1898c0d1",
+    "lean-toolchain": "7fc3c9ca176374a841abdad2bb4fa8c3c57363d50b728a512b513374610ae696"
+  },
+  "project": "formal",
+  "link_directives": [],
+  "output_digests": {
+    "index.d.ts": "28200ae799049b6e97b509d4c3297757fa82184156d3f4a493d615c74bb81b1f",
+    "index.js": "76913b9535e69898a22199165961f932c85ca7771119cd9ce41abb83bc2d9229",
+    "program.wasm": "6f09c77ab34cd5196f6e50b3beabe6b7cb5c1e46e2f439f6dcc3389690008f63"
+  }
+}
