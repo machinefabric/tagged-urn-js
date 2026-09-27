@@ -2,14 +2,16 @@
 // Tests mirror the Rust reference implementation (tagged-urn-rs) 1:1
 // TEST501-TEST577 numbering shared across all language implementations
 
-const {
+import { readFileSync } from 'node:fs';
+import { pathToFileURL } from 'node:url';
+import {
   TaggedUrn,
   TaggedUrnRelationKind,
   TaggedUrnBuilder,
   UrnMatcher,
   TaggedUrnError,
   ErrorCodes
-} = require('./tagged-urn.js');
+} from './tagged-urn.js';
 
 // Test assertion utilities
 function assert(condition, message) {
@@ -1278,8 +1280,7 @@ function test0005_CanonicalOption() {
 // `lake exe conformance`) is parsed by this parser and must get the model's
 // verdict. The same table runs in every mirror.
 function test599_every_row_of_the_models_table() {
-  const table = JSON.parse(require('fs').readFileSync(
-    require('path').join(__dirname, '..', 'formal', 'conformance.json'), 'utf8'));
+  const table = JSON.parse(readFileSync(new URL('../formal/conformance.json', import.meta.url), 'utf8'));
   const wrong = [];
   for (const row of table.refines) {
     const a = TaggedUrn.fromString(row.instance);
@@ -1419,8 +1420,8 @@ function runTests() {
   }
 }
 
-// Run the tests
-if (require.main === module) {
+// Run the tests when this file is the program, not when it is imported.
+if (import.meta.url === pathToFileURL(process.argv[1]).href) {
   try {
     runTests();
     process.exit(0);
@@ -1430,7 +1431,7 @@ if (require.main === module) {
   }
 }
 
-module.exports = { runTests };
+export { runTests };
 
 // =========================================================================
 // ORDER-THEORETIC RELATIONS & BUILDER TESTS (TEST578-595)

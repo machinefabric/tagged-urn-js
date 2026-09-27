@@ -20,10 +20,15 @@ Production-ready JavaScript implementation of Tagged URN with strict validation 
 npm install tagged-urn
 ```
 
+An ES module for Node.js 20 or later and browsers. Refinement, equivalence,
+comparability and specificity are decided by the proved model in
+`../formal`, compiled to WebAssembly (`formal/program.wasm`), which the module
+loads when it is first imported.
+
 ## Quick Start
 
 ```javascript
-const { TaggedUrn, TaggedUrnBuilder, UrnMatcher } = require('tagged-urn');
+import { TaggedUrn, TaggedUrnBuilder, UrnMatcher } from 'tagged-urn';
 
 // Create from string
 const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
@@ -91,7 +96,7 @@ Utility for matching sets of Tagged URNs:
 ### Error Handling
 
 ```javascript
-const { TaggedUrnError, ErrorCodes } = require('tagged-urn');
+import { TaggedUrnError, ErrorCodes } from 'tagged-urn';
 
 try {
   const urn = TaggedUrn.fromString('invalid:format');
@@ -147,11 +152,13 @@ Runs comprehensive test suite covering all rules and edge cases.
 
 ## Browser Support
 
-Works in both Node.js and browsers:
+Works in both Node.js and browsers, as an ES module. A page resolves the
+`lungo-ts` import (with an import map or a bundler) and serves
+`formal/program.wasm` beside `formal/index.js`, where the module fetches it:
 
 ```html
-<script src="tagged-urn.js"></script>
-<script>
+<script type="module">
+import { TaggedUrn } from './node_modules/tagged-urn/tagged-urn.js';
 const urn = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
 console.log(urn.toString());
 </script>

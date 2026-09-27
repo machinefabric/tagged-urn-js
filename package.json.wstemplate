@@ -1,12 +1,20 @@
 {
   "author": "Bahram Joharshamshiri",
+  "dependencies": {
+    "lungo-ts": {% if env.MFR_LOCAL_LIBS %}"file:{{ build.root_from_here }}/lungo/distribution/ts"{% else %}"{{ projects.lungo.latest_remote_version }}"{% endif %}
+  },
   "description": "JavaScript implementation of Tagged URN with strict validation and matching",
   "engines": {
-    "node": ">=14.0.0"
+    "node": ">=20"
+  },
+  "exports": {
+    ".": "./tagged-urn.js"
   },
   "files": [
     "tagged-urn.js",
-    "tagged-urn.test.js",
+    "formal/index.js",
+    "formal/index.d.ts",
+    "formal/program.wasm",
     "RULES.md",
     "README.md"
   ],
@@ -28,5 +36,6 @@
   "scripts": {
     "test": "node tagged-urn.test.js"
   },
+  "type": "module",
   "version": "{{ project.version }}"
 }

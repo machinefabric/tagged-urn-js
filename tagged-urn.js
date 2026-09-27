@@ -1,5 +1,14 @@
 // Tagged URN JavaScript Implementation
-// Follows the exact same rules as Rust, Go, and Objective-C implementations
+// Follows the exact same rules as Rust, Go, and Objective-C implementations.
+//
+// What two URNs mean to each other — refinement, equivalence, comparability,
+// specificity, one key's match — is decided by code generated from the proved
+// model in ../formal (Lean) by lungo, in ./formal, not written here. It runs as
+// WebAssembly, instantiated once when this module is first imported.
+
+import { load } from './formal/index.js';
+
+const model = await load();
 
 /**
  * Error types for Tagged URN operations
@@ -162,57 +171,43 @@ function scoreTagValue(value) {
 }
 
 /**
- * Whether an instance value satisfies a pattern constraint at one key.
- *
- * Every form has ONE meaning — the set of states the key may be in (absent,
- * or present with some value) — and the same meaning on either side: the
- * instance satisfies the pattern when every state it allows, the pattern
- * allows too. This is the rule proved in capdag/formal (`tagMatch_iff_allows`),
- * which is what makes refinement transitive and equivalence mean "the same
- * tag set".
- *
- * The table it replaces gave some forms two meanings — a missing key was
- * "anything" as a pattern and "absent" as an instance, and an instance-side
- * `x` or `?x` was "whatever the pattern wants". So `media:ext` counted as
- * equivalent to `media:ext=pdf`, and a candidate promising only "some ext"
- * was routed to a request needing a pdf. The change only removes matches.
+ * The model's form of a stored tag value (undefined is a key the URN omits).
+ */
+function constraintOf(value) {
+  if (value === undefined) return { kind: 'missing' };
+  if (value === '?') return { kind: 'unconstrained' };
+  if (value === '*') return { kind: 'present' };
+  if (value === '!') return { kind: 'absent' };
+  if (value.startsWith('?=')) return { kind: 'optionalNot', value: value.slice(2) };
+  if (value.startsWith('!=')) return { kind: 'presentNot', value: value.slice(2) };
+  return { kind: 'exact', value };
+}
+
+/**
+ * Orders strings by code point, as Lean's `String <` does. JavaScript's own
+ * comparison is by UTF-16 code unit, which disagrees past U+FFFF: a surrogate
+ * pair sorts below U+E000..U+FFFF, and the model would refuse the keys as out
+ * of order.
+ */
+function compareCodePoints(a, b) {
+  const x = [...a];
+  const y = [...b];
+  for (let i = 0; i < Math.min(x.length, y.length); i++) {
+    const d = x[i].codePointAt(0) - y[i].codePointAt(0);
+    if (d !== 0) return d;
+  }
+  return x.length - y.length;
+}
+
+/**
+ * Whether an instance value satisfies a pattern constraint at one key
+ * (undefined for a key the URN omits). Decided by the model: every form has
+ * one meaning — the set of states the key may be in — and the instance
+ * satisfies the pattern when every state it allows, the pattern allows too
+ * (`tagMatch_iff_allows` in ../formal).
  */
 function valuesMatch(inst, patt) {
-  const i = classifyForm(inst);
-  const p = classifyForm(patt);
-
-  // A pattern that constrains nothing accepts every instance.
-  if (p.kind === Form.MISSING || p.kind === Form.NO_CONSTRAINT) return true;
-
-  switch (i.kind) {
-    // An instance that constrains nothing promises nothing, so it satisfies
-    // no pattern that asks for something.
-    case Form.MISSING:
-    case Form.NO_CONSTRAINT:
-      return false;
-    case Form.MUST_NOT_HAVE:
-      return p.kind === Form.MUST_NOT_HAVE || p.kind === Form.ABSENT_OR_NOT_VALUE;
-    case Form.ABSENT_OR_NOT_VALUE:
-      return p.kind === Form.ABSENT_OR_NOT_VALUE && i.raw === p.raw;
-    case Form.MUST_HAVE_ANY:
-      // Present with SOME value: not a promise of any particular one.
-      return p.kind === Form.MUST_HAVE_ANY;
-    case Form.PRESENT_NOT_VALUE:
-      if (p.kind === Form.MUST_HAVE_ANY) return true;
-      if (p.kind === Form.PRESENT_NOT_VALUE || p.kind === Form.ABSENT_OR_NOT_VALUE) {
-        return i.raw === p.raw;
-      }
-      return false;
-    case Form.EXACT:
-      if (p.kind === Form.MUST_HAVE_ANY) return true;
-      if (p.kind === Form.EXACT) return i.raw === p.raw;
-      if (p.kind === Form.PRESENT_NOT_VALUE || p.kind === Form.ABSENT_OR_NOT_VALUE) {
-        return i.raw !== p.raw;
-      }
-      return false;
-    default:
-      throw new Error(`unclassified form: ${inst}`);
-  }
+  return model.valuesMatch(constraintOf(inst), constraintOf(patt));
 }
 
 /**
@@ -235,6 +230,19 @@ class TaggedUrn {
         this.tags[key.toLowerCase()] = value;
       }
     }
+    // The same URN on the proved model's side: its tags with the proof that
+    // their keys are strictly increasing. Every semantic question is asked of
+    // it. Made here, from the same tags, and the URN is frozen, so the two can
+    // never describe different URNs; it is not enumerable, so it is not part
+    // of what a URN serializes or compares as.
+    const keys = Object.keys(this.tags).sort(compareCodePoints);
+    const formal = model.make(this.prefix, keys.map((key) => [key, constraintOf(this.tags[key])]));
+    if (formal === null) {
+      throw new Error(`tagged-urn: the model refused ${this.prefix}:${keys.join(';')}, whose keys are sorted`);
+    }
+    Object.defineProperty(this, 'formal', { value: formal, enumerable: false });
+    Object.freeze(this.tags);
+    Object.freeze(this);
   }
 
   /**
@@ -676,7 +684,7 @@ class TaggedUrn {
     if (!pattern) {
       throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot match against null pattern');
     }
-    return TaggedUrn._checkMatch(this.tags, this.prefix, pattern.tags, pattern.prefix);
+    return TaggedUrn._checkMatch(this, pattern);
   }
 
   /**
@@ -691,7 +699,7 @@ class TaggedUrn {
     if (!instance) {
       throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot match against null instance');
     }
-    return TaggedUrn._checkMatch(instance.tags, instance.prefix, this.tags, this.prefix);
+    return TaggedUrn._checkMatch(instance, this);
   }
 
   /**
@@ -724,30 +732,28 @@ class TaggedUrn {
    * Core matching: does instance satisfy pattern's constraints?
    * @private
    */
-  static _checkMatch(instanceTags, instancePrefix, patternTags, patternPrefix) {
-    if (instancePrefix !== patternPrefix) {
-      throw new TaggedUrnError(
-        ErrorCodes.PREFIX_MISMATCH,
-        `Cannot compare URNs with different prefixes: '${instancePrefix}' vs '${patternPrefix}'`
-      );
-    }
-
-    const allKeys = new Set([...Object.keys(instanceTags), ...Object.keys(patternTags)]);
-
-    for (const key of allKeys) {
-      const inst = instanceTags[key];
-      const patt = patternTags[key];
-
-      if (!valuesMatch(inst, patt)) {
-        return false;
-      }
-    }
-    return true;
+  static _checkMatch(instance, pattern) {
+    TaggedUrn._samePrefix(instance, pattern);
+    return model.refines(instance.formal, pattern.formal);
   }
 
   /**
-   * Calculate specificity score for URN matching.
-   * Sum of per-tag truth-table scores. Per-tag ladder:
+   * Refuse a comparison of URNs with different prefixes: the model folds the
+   * prefix into its answer, but comparing across prefixes is a caller's error.
+   * @private
+   */
+  static _samePrefix(a, b) {
+    if (a.prefix !== b.prefix) {
+      throw new TaggedUrnError(
+        ErrorCodes.PREFIX_MISMATCH,
+        `Cannot compare URNs with different prefixes: '${a.prefix}' vs '${b.prefix}'`
+      );
+    }
+  }
+
+  /**
+   * Calculate specificity score for URN matching, as the model computes it:
+   * the sum of per-tag truth-table scores. Per-tag ladder:
    *
    *   "?"            -> 0   (no constraint)
    *   starts "?="    -> 1   (absent or not v)
@@ -759,11 +765,7 @@ class TaggedUrn {
    * @returns {number} The specificity score
    */
   specificity() {
-    let score = 0;
-    for (const value of Object.values(this.tags)) {
-      score += scoreTagValue(value);
-    }
-    return score;
+    return Number(model.specificity(this.formal));
   }
 
   /**
@@ -815,25 +817,27 @@ class TaggedUrn {
   }
 
   /**
-   * Check if two URNs are equivalent (identical tag sets)
-   * a.isEquivalent(b) ≡ a.accepts(b) && b.accepts(a)
+   * Check if two URNs are equivalent (identical tag sets), as the model
+   * decides it: a.isEquivalent(b) ≡ a.accepts(b) && b.accepts(a)
    */
   isEquivalent(other) {
     if (!other) {
       throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot compare against null URN');
     }
-    return this.accepts(other) && other.accepts(this);
+    TaggedUrn._samePrefix(this, other);
+    return model.equivalent(this.formal, other.formal);
   }
 
   /**
-   * Check if two URNs are comparable (one is a specialization of the other)
-   * a.isComparable(b) ≡ a.accepts(b) || b.accepts(a)
+   * Check if two URNs are comparable (one is a specialization of the other),
+   * as the model decides it: a.isComparable(b) ≡ a.accepts(b) || b.accepts(a)
    */
   isComparable(other) {
     if (!other) {
       throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot compare against null URN');
     }
-    return this.accepts(other) || other.accepts(this);
+    TaggedUrn._samePrefix(this, other);
+    return model.comparable(this.formal, other.formal);
   }
 
   /**
@@ -1184,8 +1188,7 @@ class UrnMatcher {
   }
 }
 
-// Export for CommonJS
-module.exports = {
+export {
   TaggedUrn,
   TaggedUrnCoordinateDelta,
   TaggedUrnRelationKind,
