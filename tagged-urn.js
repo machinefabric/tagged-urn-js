@@ -235,14 +235,27 @@ class TaggedUrn {
     // it. Made here, from the same tags, and the URN is frozen, so the two can
     // never describe different URNs; it is not enumerable, so it is not part
     // of what a URN serializes or compares as.
-    const keys = Object.keys(this.tags).sort(compareCodePoints);
-    const formal = model.make(this.prefix, keys.map((key) => [key, constraintOf(this.tags[key])]));
+    const formal = model.make(this.prefix, this.modelTags());
     if (formal === null) {
-      throw new Error(`tagged-urn: the model refused ${this.prefix}:${keys.join(';')}, whose keys are sorted`);
+      throw new Error(`tagged-urn: the model refused ${this.prefix}:${Object.keys(this.tags).join(';')}, whose keys are sorted`);
     }
     Object.defineProperty(this, 'formal', { value: formal, enumerable: false });
     Object.freeze(this.tags);
     Object.freeze(this);
+  }
+
+  /**
+   * The tags as the model's `make` takes them: (key, constraint) pairs in
+   * code-point order, each constraint plain data (`{ kind, value? }`). Every
+   * program generated for JavaScript runs in a WebAssembly instance of its own
+   * and cannot take this URN's model value, so a program built on tagged-urn's
+   * model makes its own from these, with its own `make`.
+   * @returns {Array<[string, {kind: string, value?: string}]>}
+   */
+  modelTags() {
+    return Object.keys(this.tags)
+      .sort(compareCodePoints)
+      .map((key) => [key, constraintOf(this.tags[key])]);
   }
 
   /**
