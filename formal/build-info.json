@@ -1,10 +1,10 @@
 {
-  "build_key": "aa6d35f3126f4b87b7a43762638104576f59549463362b5a396be00271dd232b",
+  "build_key": "35d4dbeeaa31f5ae27553503f17bb6869228f612aefc46e068836882481a3e74",
   "lean_version": "4.34.1",
   "lean_githash": "5045d0056413266e57c625dcd7c365b10e377c52",
   "bir_version": 3,
   "adapter_version": 1,
-  "lungo_version": "1.71.2897",
+  "lungo_version": "1.72.2908",
   "runtime_abi": 1,
   "worker_identity": "0587064dd2f5b65f8d77fefae9b7a41737221883cc74030f7cd7469534700252",
   "input_digests": {
@@ -19,8 +19,8 @@
   "project": "formal",
   "link_directives": [],
   "output_digests": {
-    "index.d.ts": "b4ed0f3b4ab2277335756f458ce5cf724b01e9a9aa6714941a0c52e144e05d8b",
-    "index.js": "d9ccb9021c4550ac0d92ee90cb926b8529e2908a0d70a6441dfd08afaa580ba8",
-    "program.wasm": "b2469d55e1f755b087002e9c4efe6da2d2e071e96665c4e6747d4bb61026a3a4"
+    "index.d.ts": "2d7fb9ed358d6a4492a668c8395e8aa28d5757c58950357ff4eca3e239f5ceee",
+    "index.js": "8a206e9543dc31e5d2875f34aa79f6bce55484b407f866cdf1c1c0ac65e54933",
+    "program.wasm": "f280f32ee4631ffbaa41d9cf79d69d6c5562649a7f45611ce6cbb54514abed1e"
   }
 }
