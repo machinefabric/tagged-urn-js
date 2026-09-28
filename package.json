@@ -1,7 +1,7 @@
 {
   "author": "Bahram Joharshamshiri",
   "dependencies": {
-    "lungo-ts": "0.27.1270"
+    "lungo-ts": "1.72.2908"
   },
   "description": "JavaScript implementation of Tagged URN with strict validation and matching",
   "engines": {
@@ -37,5 +37,5 @@
     "test": "node tagged-urn.test.js"
   },
   "type": "module",
-  "version": "1.59.59"
+  "version": "1.60.66"
 }
