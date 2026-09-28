@@ -37,5 +37,5 @@
     "test": "node tagged-urn.test.js"
   },
   "type": "module",
-  "version": "1.63.89"
+  "version": "1.64.96"
 }
