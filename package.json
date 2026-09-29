@@ -1,7 +1,7 @@
 {
   "author": "Bahram Joharshamshiri",
   "dependencies": {
-    "lungo-ts": "0.27.1270"
+    "lungo-ts": "1.77.3244"
   },
   "description": "JavaScript implementation of Tagged URN with strict validation and matching",
   "engines": {
@@ -31,11 +31,11 @@
   "repository": {
     "directory": "tagged-urn-js",
     "type": "git",
-    "url": "https://github.com/machinefabric/tagged-urn.git"
+    "url": "https://github.com/machinefabric/tagged-urn-js.git"
   },
   "scripts": {
     "test": "node tagged-urn.test.js"
   },
   "type": "module",
-  "version": "1.64.96"
+  "version": "1.65.103"
 }
