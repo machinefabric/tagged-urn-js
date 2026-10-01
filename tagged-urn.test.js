@@ -1287,6 +1287,13 @@ function test599_every_row_of_the_models_table() {
     const b = TaggedUrn.fromString(row.pattern);
     if (a.conformsTo(b) !== row.refines) wrong.push(`${row.instance} ⪯ ${row.pattern}: model ${row.refines}`);
     if (a.isEquivalent(b) !== row.equivalent) wrong.push(`${row.instance} ≡ ${row.pattern}: model ${row.equivalent}`);
+    for (const [name, got, model] of [
+      ['meets', a.meets(b), row.meets],
+      ['satisfies', a.satisfies(b), row.satisfies],
+      ['may satisfy', a.maySatisfy(b), row.may_satisfy],
+    ]) {
+      if (got !== model) wrong.push(`${row.instance} ${name} ${row.pattern}: model ${model}`);
+    }
   }
   for (const row of table.scores) {
     if (TaggedUrn.fromString(row.urn).specificity() !== row.score) wrong.push(`specificity ${row.urn}: model ${row.score}`);

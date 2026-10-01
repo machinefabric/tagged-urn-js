@@ -210,6 +210,16 @@ function valuesMatch(inst, patt) {
   return model.valuesMatch(constraintOf(inst), constraintOf(patt));
 }
 
+/** Whether two stored values allow a common state at one key. */
+function valuesMeet(a, b) {
+  return model.valuesMeet(constraintOf(a), constraintOf(b));
+}
+
+/** One key of a complete thing against a pattern: an omitted key is absent. */
+function valuesMatchClosed(inst, patt) {
+  return model.valuesMatchClosed(constraintOf(inst), constraintOf(patt));
+}
+
 /**
  * Tagged URN implementation with flat, ordered tags and configurable prefix
  */
@@ -716,6 +726,67 @@ class TaggedUrn {
   }
 
   /**
+   * Whether this URN and `other` COULD be about the same thing: some thing is
+   * described by both. Symmetric — neither is the instance.
+   *
+   * `conformsTo` is a guarantee: everything this URN describes, the pattern
+   * describes. This is the other question the same meanings answer, and the one
+   * a search asks: `media:ext` (some ext) does not conform to `media:ext=pdf`,
+   * and is not excluded by it either — it meets it. Whatever conforms meets;
+   * what meets need not conform, and meeting is not transitive (a pdf meets
+   * "some ext", which meets a png). Decided by the model.
+   *
+   * @param {TaggedUrn} other
+   * @returns {boolean}
+   * @throws {TaggedUrnError} If prefixes don't match
+   */
+  meets(other) {
+    if (!other) {
+      throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot compare with a null URN');
+    }
+    TaggedUrn._samePrefix(this, other);
+    return model.meets(this.formal, other.formal);
+  }
+
+  /**
+   * Whether this URN, read as a COMPLETE thing, satisfies `pattern`.
+   *
+   * A description that omits a key says nothing about it, which is how
+   * `conformsTo` reads both sides. A thing that exists — a value with these
+   * tags, a cap's own list of tags — omits a key because it does not have it.
+   * Read so, a thing that does not mention `x` satisfies `!x`. Use this where
+   * the receiver is what something IS; use `conformsTo` where it is what
+   * something is declared to take or give. Decided by the model.
+   *
+   * @param {TaggedUrn} pattern
+   * @returns {boolean}
+   * @throws {TaggedUrnError} If prefixes don't match
+   */
+  satisfies(pattern) {
+    if (!pattern) {
+      throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot match against null pattern');
+    }
+    TaggedUrn._samePrefix(this, pattern);
+    return model.refinesClosed(this.formal, pattern.formal);
+  }
+
+  /**
+   * Whether this URN, read as a complete thing, COULD satisfy `pattern`:
+   * `satisfies` is to this as `conformsTo` is to `meets`.
+   *
+   * @param {TaggedUrn} pattern
+   * @returns {boolean}
+   * @throws {TaggedUrnError} If prefixes don't match
+   */
+  maySatisfy(pattern) {
+    if (!pattern) {
+      throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'cannot match against null pattern');
+    }
+    TaggedUrn._samePrefix(this, pattern);
+    return model.meetsClosed(this.formal, pattern.formal);
+  }
+
+  /**
    * Check if this URN (instance) satisfies the pattern string's constraints.
    * Parses the pattern string then calls conformsTo().
    *
@@ -1210,5 +1281,7 @@ export {
   TaggedUrnError,
   ErrorCodes,
   scoreTagValue,
-  valuesMatch
+  valuesMatch,
+  valuesMeet,
+  valuesMatchClosed
 };
