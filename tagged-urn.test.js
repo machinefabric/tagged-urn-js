@@ -12,6 +12,7 @@ import {
   TaggedUrnError,
   ErrorCodes
 } from './tagged-urn.js';
+import { ASSURANCE } from './formal/index.js';
 
 // Test assertion utilities
 function assert(condition, message) {
@@ -1273,6 +1274,28 @@ function test0005_CanonicalOption() {
 // TEST RUNNER
 // ============================================================================
 
+// TEST600: every function of the proved model this mirror calls carries a proved claim.
+//
+// The model's package carries what is proved of each function it exports (its assurance
+// document, generated from ../formal): each one decides, equals or keeps what its claim says,
+// and none rests on an assumption about the host — the model needs none.
+function test600_every_model_function_carries_a_proved_claim() {
+  assertEqual(ASSURANCE.facilities.length, 0, 'the model assumes nothing of the host');
+  assertEqual(ASSURANCE.assumptions.length, 0, 'no assumptions');
+  assert(ASSURANCE.exports.length > 0, 'the model exports functions');
+  for (const e of ASSURANCE.exports) {
+    assert(e.claims.length > 0, `${e.name} carries no claim`);
+    assertEqual(e.assumptions.length, 0, `${e.name} rests on an assumption`);
+    for (const name of e.claims) {
+      const claim = ASSURANCE.claims.find((c) => c.name === name);
+      assertEqual(claim.status, 'proved', name);
+      assert(claim.subjects.includes(e.name), `${name} is about ${e.name}`);
+    }
+  }
+  const refines = ASSURANCE.claims.find((c) => c.name === 'TaggedUrn.Exec.refines_decides');
+  assertDeepEqual([refines.relation, refines.specifications], ['lungo.decides', ['TaggedUrn.refines']], 'refines decides');
+}
+
 // TEST599: every row of the proved model's table.
 //
 // The rules are proved in ../formal (Lean); this ties them to this mirror:
@@ -1305,6 +1328,7 @@ function test599_every_row_of_the_models_table() {
 function runTests() {
   const tests = [
     ['TEST599', test599_every_row_of_the_models_table],
+    ['TEST600', test600_every_model_function_carries_a_proved_claim],
     // Parsing/Creation (TEST501-TEST518)
     ['TEST501', test501_tagged_urn_creation],
     ['TEST502', test502_custom_prefix],
