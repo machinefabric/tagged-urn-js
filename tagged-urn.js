@@ -731,7 +731,7 @@ class TaggedUrn {
    *
    * `conformsTo` is a guarantee: everything this URN describes, the pattern
    * describes. This is the other question the same meanings answer, and the one
-   * a search asks: `media:ext` (some ext) does not conform to `media:ext=pdf`,
+   * a search asks: `media:ext` (some ext) does not conform to `media:document;ext=pdf`,
    * and is not excluded by it either — it meets it. Whatever conforms meets;
    * what meets need not conform, and meeting is not transitive (a pdf meets
    * "some ext", which meets a png). Decided by the model.
