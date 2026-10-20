@@ -1,10 +1,10 @@
 {
-  "build_key": "8e8d31e7ee552771dd0a1eda5da9dbc738668ea501f55c3469339f5ffe9c15dc",
+  "build_key": "acd38e51947e1308d89376b2a304cf2d3ca765651d855f7bf36213c23e489434",
   "lean_version": "4.34.1",
   "lean_githash": "5045d0056413266e57c625dcd7c365b10e377c52",
   "bir_version": 3,
   "adapter_version": 2,
-  "lungo_version": "1.112.74",
+  "lungo_version": "1.113.0",
   "runtime_abi": 2,
   "worker_identity": "f9a5901d4a5bbf60ba25384968b626a055d4d8183729eae9a6914776c3d31457",
   "input_digests": {
@@ -22,7 +22,7 @@
     "<package:lungo>/Lungo/Spec/Model.lean": "5082edc39c7d67b908ab470ae61b6f97fa547b910dd0915b6f72b27ee54b90a7",
     "<package:lungo>/Lungo/Spec/State.lean": "a5a5aa8ccb208f06dd45005e5740c4e7096b1a7f8d484f6cc19d4835e816979e",
     "<package:lungo>/Lungo/Trace.lean": "f6f0735df8f533ef42e71cc5f5be73462fcac902c38f56f3d3411b28816a57bf",
-    "<package:lungo>/lakefile.toml": "0af9180abb74236f7cb2b8d87d84f471a1e9a26a91c87b120aac5fb5d962296e",
+    "<package:lungo>/lakefile.toml": "a1aa4452a0b62b428ff49f0142f9d9cdc53ab659170bf82366c80975f097f03b",
     "TaggedUrn/Constraint.lean": "20d93e3ff2482334a7288262c6fb229675e13696af5712dcec1af2f3fe6e4028",
     "TaggedUrn/Exec.lean": "6cbe398e8c0fe0ffd30191d41337ebc52d89436e363518bccb38a7732ffcf026",
     "TaggedUrn/Sorted.lean": "63673529b50aeb2faa578b8852be2414d2a3df9e03e2685f6a5a67ebf6da2c9d",
@@ -34,9 +34,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "ec0e105ff4c5d1ea6562b123226bd4a390e009792549579408e45ad112764243",
-    "index.d.ts": "14c7445ed814453743cd6f2bf30beefe0d9cf8632505b58bf4aa298c88cca5cf",
-    "index.js": "bd4e01a7289775008d0b8608a7d24249a0cba5623538c5c50df402893d5541a7"
+    "assurance.json": "c2bd0b0e5c76486d7f3c2f1be58d70b508b28936a01df2cde099b34fbf7924bc",
+    "index.d.ts": "a1828a7bb234d4e7ce9f1d7813e58a3b1b8195fa961dc7ef45bf38219c271a61",
+    "index.js": "46f89eee9aacf87efcaa5df2d878bc163fa7ea52ba5e355346e138501832d58d"
   },
   "platform_products": [
     "program.wasm"
