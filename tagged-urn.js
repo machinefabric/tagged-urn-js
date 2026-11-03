@@ -822,6 +822,42 @@ class TaggedUrn {
   }
 
   /**
+   * The most specific URN every one of `urns` conforms to: their common
+   * denominator.
+   *
+   * Key by key, the bound allows every state some input allows. Where no single
+   * form says exactly that, there is no least bound at all — `ext=png` and
+   * `ext=jpeg` are both `ext`, both `ext!=pdf` and both `ext!=gif` — so the
+   * bound is the least among those that exclude only values the inputs name:
+   * here `ext`. When one input holds all the others, the bound is that input.
+   * The bound of no URNs is the URN with no tags.
+   *
+   * Made by the model (`TaggedUrn.Exec.leastUpperBound`), whose theorems say
+   * every input conforms to the bound and the bound conforms to every such
+   * bound of them.
+   *
+   * @param {string} prefix - The prefix every URN must have
+   * @param {TaggedUrn[]} urns - The URNs to bound
+   * @returns {TaggedUrn} The bound
+   * @throws {TaggedUrnError} PREFIX_MISMATCH if a URN has another prefix
+   */
+  static leastUpperBound(prefix, urns) {
+    const lower = prefix.toLowerCase();
+    const tags = model.leastUpperBound(lower, urns.map((u) => u.formal));
+    if (tags === null) {
+      const other = urns.find((u) => u.prefix !== lower);
+      if (other === undefined) {
+        throw new Error(`tagged-urn: the model made no bound of URNs that all have the prefix ${lower}`);
+      }
+      throw new TaggedUrnError(
+        ErrorCodes.PREFIX_MISMATCH,
+        `Cannot bound URNs with different prefixes: '${lower}' vs '${other.prefix}'`
+      );
+    }
+    return new TaggedUrn(lower, Object.fromEntries(tags));
+  }
+
+  /**
    * Refuse a comparison of URNs with different prefixes: the model folds the
    * prefix into its answer, but comparing across prefixes is a caller's error.
    * @private

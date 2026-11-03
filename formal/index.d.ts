@@ -31,6 +31,8 @@ export class TaggedUrnFormal {
   comparable(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.equivalent : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
   equivalent(a: Wf, b: Wf): boolean;
+  /** Lean's TaggedUrn.Exec.leastUpperBound : String → List TaggedUrn.Exec.Wf → Option (List (String × String)) */
+  leastUpperBound(scheme: string, us: Array<Wf>): L.Option<Array<[string, string]>>;
   /** Lean's TaggedUrn.Exec.make : String → List (String × TaggedUrn.Constraint) → Option TaggedUrn.Exec.Wf */
   make(scheme: string, tags: Array<[string, Constraint]>): L.Option<Wf>;
   /** Lean's TaggedUrn.Exec.meets : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */

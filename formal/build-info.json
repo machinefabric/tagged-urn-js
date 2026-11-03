@@ -24,7 +24,8 @@
     "<package:lungo>/Lungo/Trace.lean": "f6f0735df8f533ef42e71cc5f5be73462fcac902c38f56f3d3411b28816a57bf",
     "<package:lungo>/lakefile.toml": "97e0e471de3aaddef73988624b6126e1cf80b8c6f1f51ce3f3a8153d8c13d046",
     "TaggedUrn/Constraint.lean": "20d93e3ff2482334a7288262c6fb229675e13696af5712dcec1af2f3fe6e4028",
-    "TaggedUrn/Exec.lean": "6cbe398e8c0fe0ffd30191d41337ebc52d89436e363518bccb38a7732ffcf026",
+    "TaggedUrn/Exec.lean": "d8eb4db6b96b06895cb2b0c89731f81c7335734d712960751e0921bdab0a737e",
+    "TaggedUrn/Join.lean": "fc725e93953004569da2965e7ff10c13efd868f5cabee9d23ce9300eef3d662e",
     "TaggedUrn/Sorted.lean": "63673529b50aeb2faa578b8852be2414d2a3df9e03e2685f6a5a67ebf6da2c9d",
     "TaggedUrn/Urn.lean": "6c1905639773812f839ae25bcf12b4efcc653a342e3419938b25f04b0c0ff342",
     "lake-manifest.json": "6fc7cf00479951a2d966cc057bbf91708c78a4895fe8aedfa4d9cf80bf2c9965",
@@ -34,9 +35,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "e80ff40083f51289b4e68b60aa998f11bd5b88eec87d66ac7ddb882d3f1d8f3b",
-    "index.d.ts": "a11a2da852bfcb701acb72964f931e8e274e15ae9d5fd3c24c65c940ac303518",
-    "index.js": "01686ed8aca5bfa2444bcd39d98e5af38cdb53704b895b7809532715c2c5bfe6"
+    "assurance.json": "2409b688a8af4b06a032679883f9a40ba27778a1c661708bb76d4feae9cf4e02",
+    "index.d.ts": "45f606ce7e7ad29f79d7f45548b9b2892b2c85e91c10cfdf8a3c105d18518539",
+    "index.js": "147fb8cf17d2fb490cf3caaa446e22deb8fcac97cb641f41f30de1d4655411b7"
   },
   "platform_products": [
     "program.wasm"

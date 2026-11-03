@@ -61,6 +61,8 @@ console.log(best.toString()); // "cap:ext=pdf;generate" (most specific)
 #### Static Methods
 - `TaggedUrn.fromString(s)` - Parse Tagged URN from string
   - Throws `TaggedUrnError` on invalid format
+- `TaggedUrn.leastUpperBound(prefix, urns)` - The most specific URN every one of `urns` conforms to, made by the proved model
+  - Throws `TaggedUrnError` (PREFIX_MISMATCH) when a URN has another prefix
 
 #### Instance Methods
 - `toString()` - Get canonical string representation

@@ -1301,7 +1301,8 @@ function test600_every_model_function_carries_a_proved_claim() {
 // The rules are proved in ../formal (Lean); this ties them to this mirror:
 // every row of ../formal/conformance.json (written by the model,
 // `lake exe conformance`) is parsed by this parser and must get the model's
-// verdict. The same table runs in every mirror.
+// verdict, and every set of URNs in it the model's bound (leastUpperBound).
+// The same table runs in every mirror.
 function test599_every_row_of_the_models_table() {
   const table = JSON.parse(readFileSync(new URL('../formal/conformance.json', import.meta.url), 'utf8'));
   const wrong = [];
@@ -1321,12 +1322,39 @@ function test599_every_row_of_the_models_table() {
   for (const row of table.scores) {
     if (TaggedUrn.fromString(row.urn).specificity() !== row.score) wrong.push(`specificity ${row.urn}: model ${row.score}`);
   }
-  assert(table.refines.length > 4000 && table.scores.length > 60, 'the table is the full one');
+  for (const row of table.bounds) {
+    const bound = TaggedUrn.leastUpperBound('media', row.urns.map((u) => TaggedUrn.fromString(u)));
+    if (!bound.equals(TaggedUrn.fromString(row.bound))) {
+      wrong.push(`bound of [${row.urns.join(', ')}]: ${bound.toString()}, model ${row.bound}`);
+    }
+  }
+  assert(table.refines.length > 4000 && table.scores.length > 60 && table.bounds.length > 5000,
+    'the table is the full one');
   assert(wrong.length === 0, `${wrong.length} answer(s) differ from the model, e.g. ${wrong.slice(0, 8).join('; ')}`);
+}
+
+// TEST392: the bound of several URNs: the values they share, a key every one sets to differing values as "some value", the coarser of two comparable URNs, nothing for none, and another prefix refused
+function test392_least_upper_bound() {
+  const bound = (...urns) => TaggedUrn.leastUpperBound('media', urns.map((u) => TaggedUrn.fromString(u)));
+  const is = (urn, expected) => assert(urn.equals(TaggedUrn.fromString(expected)), `${urn.toString()} should be ${expected}`);
+
+  is(bound('media:ext=png;image', 'media:ext=jpeg;image'), 'media:ext;image');
+  // One input already holds the other: the bound is that input, not the wider `ext`.
+  is(bound('media:ext=png', 'media:ext!=pdf'), 'media:ext!=pdf');
+  // A key one input omits says nothing there, so the bound says nothing either.
+  is(bound('media:ext=png;image', 'media:image'), 'media:image');
+  is(bound(), 'media:');
+
+  assertThrows(
+    () => bound('media:image', 'cap:image'),
+    ErrorCodes.PREFIX_MISMATCH,
+    'Should throw PREFIX_MISMATCH when bounding URNs with different prefixes'
+  );
 }
 
 function runTests() {
   const tests = [
+    ['TEST392', test392_least_upper_bound],
     ['TEST599', test599_every_row_of_the_models_table],
     ['TEST600', test600_every_model_function_carries_a_proved_claim],
     // Parsing/Creation (TEST501-TEST518)
