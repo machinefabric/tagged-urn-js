@@ -1,7 +1,7 @@
 {
   "author": "Bahram Joharshamshiri",
   "dependencies": {
-    "lungo-ts": "1.117.0"
+    "lungo-ts": "file:../../.sdx/disposable/build/lungo/distribution/ts"
   },
   "description": "JavaScript implementation of Tagged URN with strict validation and matching",
   "engines": {
