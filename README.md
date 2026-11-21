@@ -5,12 +5,13 @@ Production-ready JavaScript implementation of Tagged URN with strict validation 
 ## Features
 
 - **Strict Rule Enforcement** - Follows exact same rules as Rust, Go, and Objective-C implementations
-- **Case Insensitive** - All input normalized to lowercase (except quoted values)
+- **Six Tag Forms** - exact `k=v`, present `k`, absent `!k`, unconstrained `?k`, `k?=v` (absent or not v), `k!=v` (present and not v)
+- **Typed Tags** - Each tag is stored as the constraint it writes: a frozen `{ kind, value? }`, made with `Constraint`
+- **Identifiers** - The prefix and every key are an ASCII letter followed by ASCII letters, digits and `-`
+- **Case Insensitive** - The prefix, keys and unquoted values are lowered; quoted values keep their case
+- **Literal Quoting** - A quoted value is always the literal value: `x="*"` is the exact value `*`
 - **Tag Order Independent** - Canonical alphabetical sorting
-- **Special Pattern Values** - `*` (must-have-any), `?` (unspecified), `!` (must-not-have)
-- **Value-less Tags** - Tags without values (`tag`) mean must-have-any (`tag=*`)
-- **Extended Characters** - Support for `/` and `:` in tag components
-- **Graded Specificity** - Exact values score higher than wildcards
+- **Graded Specificity** - `?k` 0, `k?=v` 1, `k` 2, `k!=v` 3, `k=v` 4, `!k` 5
 - **Production Ready** - No fallbacks, fails hard on invalid input
 - **Comprehensive Tests** - Full test suite verifying all rules
 
@@ -28,26 +29,28 @@ loads when it is first imported.
 ## Quick Start
 
 ```javascript
-import { TaggedUrn, TaggedUrnBuilder, UrnMatcher } from 'tagged-urn';
+import { Constraint, TaggedUrn, TaggedUrnBuilder, UrnMatcher } from 'tagged-urn';
 
 // Create from string
 const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
 console.log(urn.toString()); // "cap:ext=pdf;generate"
+console.log(urn.getTag('ext')); // { kind: 'exact', value: 'pdf' }
 
 // Use builder pattern
-const built = new TaggedUrnBuilder()
+const built = new TaggedUrnBuilder('cap')
   .marker('extract')
   .tag('target', 'metadata')
+  .constraint('debug', Constraint.absent())
   .build();
+console.log(built.toString()); // "cap:!debug;extract;target=metadata"
 
 // Matching
-const request = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
+const request = TaggedUrn.fromString('cap:generate');
 console.log(urn.conformsTo(request)); // true
 
 // Find best match
 const urns = [
   TaggedUrn.fromString('cap:generate'),
-  TaggedUrn.fromString('cap:generate;in=media:;out=media:'),
   TaggedUrn.fromString('cap:generate;ext=pdf')
 ];
 const best = UrnMatcher.findBestMatch(urns, request);
@@ -66,9 +69,11 @@ console.log(best.toString()); // "cap:ext=pdf;generate" (most specific)
 
 #### Instance Methods
 - `toString()` - Get canonical string representation
-- `getTag(key)` - Get tag value (case-insensitive)
-- `hasTag(key, value)` - Check if tag exists with value
-- `withTag(key, value)` - Add/update tag (returns new instance)
+- `getTag(key)` - The constraint for a key (case-insensitive), or `undefined`
+- `constraint(key)` - The constraint for a key, `missing` when it is not mentioned
+- `hasTag(key, value)` - Whether the URN writes the exact value `key=value`
+- `hasMarkerTag(key)` - Whether the URN writes the marker `key`
+- `withTag(key, constraint)` - Add/replace a tag, checked (returns new instance)
 - `withoutTag(key)` - Remove tag (returns new instance)
 - `conformsTo(pattern)` - Check if this URN conforms to a pattern
 - `accepts(instance)` - Check if this URN (as pattern) accepts an instance
@@ -81,9 +86,10 @@ console.log(best.toString()); // "cap:ext=pdf;generate" (most specific)
 Fluent builder for constructing Tagged URNs:
 
 ```javascript
-const urn = new TaggedUrnBuilder()
-  .marker('generate')
-  .tag('format', 'json')
+const urn = new TaggedUrnBuilder('cap')
+  .marker('generate')               // present
+  .tag('format', 'json')            // exact value, taken literally
+  .constraint('debug', Constraint.absent())
   .build();
 ```
 
@@ -112,28 +118,33 @@ try {
 
 Error codes:
 - `ErrorCodes.INVALID_FORMAT` - General format error
-- `ErrorCodes.MISSING_CAP_PREFIX` - Missing "cap:" prefix
-- `ErrorCodes.INVALID_CHARACTER` - Invalid characters in tags
+- `ErrorCodes.MISSING_PREFIX` - No prefix followed by ':'
+- `ErrorCodes.EMPTY_PREFIX` - Empty prefix
+- `ErrorCodes.INVALID_CHARACTER` - A character not allowed in a prefix, key or value
+- `ErrorCodes.INVALID_TAG_FORMAT` - A tag given no constraint
 - `ErrorCodes.DUPLICATE_KEY` - Duplicate tag keys
-- `ErrorCodes.NUMERIC_KEY` - Pure numeric tag keys
 - `ErrorCodes.EMPTY_TAG` - Empty tag components
+- `ErrorCodes.UNTERMINATED_QUOTE` - Quoted value never closed
+- `ErrorCodes.INVALID_ESCAPE_SEQUENCE` - Escape other than `\"` or `\\`
+- `ErrorCodes.PREFIX_MISMATCH` - Comparing URNs of different prefixes
+- `ErrorCodes.WHITESPACE_IN_INPUT` - Leading or trailing whitespace
 
 ## Rules
 
-This implementation strictly follows the Tagged URN rules. See `RULES.md` for complete specification.
+This implementation strictly follows the Tagged URN rules. See [Tagged URN RULES.md](https://github.com/machinefabric/tagged-urn-rs/blob/main/docs/RULES.md) for the complete specification.
 
 ### Key Rules Summary:
 
-1. **Case Insensitive** - `cap:Format=JSON` == `cap:format=JSON` (key is normalized; value preserved)
+1. **Case Insensitive** - `cap:Format=JSON` == `cap:format=json`; a quoted value keeps its case: `cap:format="JSON"`
 2. **Order Independent** - `cap:a=1;b=2` == `cap:b=2;a=1`
-3. **Prefix Required** - Must start with `cap:`
+3. **Prefix Required** - An identifier followed by `:` (`cap:`, `media:`, …)
 4. **Semicolon Separated** - Tags separated by `;`
 5. **Optional Trailing `;`** - `cap:a=1;` == `cap:a=1`
-6. **Canonical Form** - Lowercase, alphabetically sorted, no trailing `;`
-7. **Special Values** - `*` (must-have-any), `?` (unspecified), `!` (must-not-have)
-8. **Extended Characters** - `/` and `:` allowed in tag components
-9. **No Duplicate Keys** - Fails hard on duplicates
-10. **No Numeric Keys** - Pure numeric keys forbidden
+6. **Canonical Form** - Lowercase, alphabetically sorted, no trailing `;`, values quoted only when they must be
+7. **Six Forms** - `k=v`, `k`, `!k`, `?k`, `k?=v`, `k!=v`; `k=?v` and `k=!v` are `k?=v` and `k!=v`
+8. **Identifiers** - The prefix and every key are an ASCII letter followed by ASCII letters, digits and `-`
+9. **Unquoted Values** - Any character but `;`, `=`, `"`, `\` and whitespace
+10. **No Duplicate Keys** - Fails hard on duplicates
 
 ### Matching Semantics:
 
@@ -182,7 +193,7 @@ Works in both Node.js and browsers, as an ES module. A page resolves the
 <script type="module">
 import { TaggedUrn } from './node_modules/tagged-urn/tagged-urn.js';
 const urn = TaggedUrn.fromString('cap:generate;in=media:;out=media:');
-console.log(urn.toString());
+console.log(urn.toString()); // cap:generate;in=media:;out=media:
 </script>
 ```
 

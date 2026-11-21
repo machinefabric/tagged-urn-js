@@ -10,7 +10,8 @@ import {
   TaggedUrnBuilder,
   UrnMatcher,
   TaggedUrnError,
-  ErrorCodes
+  ErrorCodes,
+  Constraint
 } from './tagged-urn.js';
 import { ASSURANCE } from './formal/index.js';
 
@@ -23,6 +24,12 @@ function assert(condition, message) {
 
 function assertEqual(actual, expected, message) {
   if (actual !== expected) {
+    throw new Error(`Assertion failed: ${message}. Expected: ${JSON.stringify(expected)}, Actual: ${JSON.stringify(actual)}`);
+  }
+}
+
+function assertConstraint(actual, expected, message) {
+  if (!Constraint.equals(actual, expected)) {
     throw new Error(`Assertion failed: ${message}. Expected: ${JSON.stringify(expected)}, Actual: ${JSON.stringify(actual)}`);
   }
 }
@@ -68,8 +75,8 @@ function test501_tagged_urn_creation() {
   const urn = TaggedUrn.fromString('cap:generate;ext=pdf;target=thumbnail');
   assertEqual(urn.getPrefix(), 'cap', 'Should get prefix');
   assert(urn.hasMarkerTag('generate'), 'Should get op tag');
-  assertEqual(urn.getTag('target'), 'thumbnail', 'Should get target tag');
-  assertEqual(urn.getTag('ext'), 'pdf', 'Should get ext tag');
+  assertConstraint(urn.getTag('target'), Constraint.exact('thumbnail'), 'Should get target tag');
+  assertConstraint(urn.getTag('ext'), Constraint.exact('pdf'), 'Should get ext tag');
 }
 
 // TEST502: Verify custom prefixes work and tags are sorted alphabetically
@@ -123,12 +130,12 @@ function test506_unquoted_values_lowercased() {
 
   // Keys are always lowercase
   assert(urn.hasMarkerTag('generate'), 'Should have generate marker (key lowercased)');
-  assertEqual(urn.getTag('ext'), 'pdf', 'Should normalize ext to lowercase');
-  assertEqual(urn.getTag('target'), 'thumbnail', 'Should normalize target to lowercase');
+  assertConstraint(urn.getTag('ext'), Constraint.exact('pdf'), 'Should normalize ext to lowercase');
+  assertConstraint(urn.getTag('target'), Constraint.exact('thumbnail'), 'Should normalize target to lowercase');
 
   // Key lookup is case-insensitive (try uppercase variants of an existing key)
-  assertEqual(urn.getTag('EXT'), 'pdf', 'Should lookup with uppercase key');
-  assertEqual(urn.getTag('Ext'), 'pdf', 'Should lookup with mixed case key');
+  assertConstraint(urn.getTag('EXT'), Constraint.exact('pdf'), 'Should lookup with uppercase key');
+  assertConstraint(urn.getTag('Ext'), Constraint.exact('pdf'), 'Should lookup with mixed case key');
 
   // Tag order in the source string does not affect canonical form —
   // parsed URNs sort tags alphabetically before serializing.
@@ -140,52 +147,52 @@ function test506_unquoted_values_lowercased() {
 // TEST507: Verify quoted values preserve their case exactly
 function test507_quoted_values_preserve_case() {
   const urn = TaggedUrn.fromString('cap:key="Value With Spaces"');
-  assertEqual(urn.getTag('key'), 'Value With Spaces', 'Should preserve quoted value case');
+  assertConstraint(urn.getTag('key'), Constraint.exact('Value With Spaces'), 'Should preserve quoted value case');
 
   // Key is still lowercase
   const urn2 = TaggedUrn.fromString('cap:KEY="Value With Spaces"');
-  assertEqual(urn2.getTag('key'), 'Value With Spaces', 'Key should be lowercased');
+  assertConstraint(urn2.getTag('key'), Constraint.exact('Value With Spaces'), 'Key should be lowercased');
 
   // Unquoted vs quoted case difference
   const unquoted = TaggedUrn.fromString('cap:key=UPPERCASE');
   const quoted = TaggedUrn.fromString('cap:key="UPPERCASE"');
-  assertEqual(unquoted.getTag('key'), 'uppercase', 'Unquoted should be lowercased');
-  assertEqual(quoted.getTag('key'), 'UPPERCASE', 'Quoted should preserve case');
+  assertConstraint(unquoted.getTag('key'), Constraint.exact('uppercase'), 'Unquoted should be lowercased');
+  assertConstraint(quoted.getTag('key'), Constraint.exact('UPPERCASE'), 'Quoted should preserve case');
   assert(!unquoted.equals(quoted), 'Different case values should NOT be equal');
 }
 
 // TEST508: Verify semicolons, equals, and spaces in quoted values are allowed
 function test508_quoted_value_special_chars() {
   const urn = TaggedUrn.fromString('cap:key="value;with;semicolons"');
-  assertEqual(urn.getTag('key'), 'value;with;semicolons', 'Should allow semicolons in quotes');
+  assertConstraint(urn.getTag('key'), Constraint.exact('value;with;semicolons'), 'Should allow semicolons in quotes');
 
   const urn2 = TaggedUrn.fromString('cap:key="value=with=equals"');
-  assertEqual(urn2.getTag('key'), 'value=with=equals', 'Should allow equals in quotes');
+  assertConstraint(urn2.getTag('key'), Constraint.exact('value=with=equals'), 'Should allow equals in quotes');
 
   const urn3 = TaggedUrn.fromString('cap:key="hello world"');
-  assertEqual(urn3.getTag('key'), 'hello world', 'Should allow spaces in quotes');
+  assertConstraint(urn3.getTag('key'), Constraint.exact('hello world'), 'Should allow spaces in quotes');
 }
 
 // TEST509: Verify escape sequences in quoted values are parsed correctly
 function test509_quoted_value_escape_sequences() {
   // Escaped quotes
   const urn = TaggedUrn.fromString('cap:key="value\\"quoted\\""');
-  assertEqual(urn.getTag('key'), 'value"quoted"', 'Should parse escaped quotes');
+  assertConstraint(urn.getTag('key'), Constraint.exact('value"quoted"'), 'Should parse escaped quotes');
 
   // Escaped backslashes
   const urn2 = TaggedUrn.fromString('cap:key="path\\\\file"');
-  assertEqual(urn2.getTag('key'), 'path\\file', 'Should parse escaped backslashes');
+  assertConstraint(urn2.getTag('key'), Constraint.exact('path\\file'), 'Should parse escaped backslashes');
 
   // Mixed escapes
   const urn3 = TaggedUrn.fromString('cap:key="say \\"hello\\\\world\\""');
-  assertEqual(urn3.getTag('key'), 'say "hello\\world"', 'Should parse mixed escapes');
+  assertConstraint(urn3.getTag('key'), Constraint.exact('say "hello\\world"'), 'Should parse mixed escapes');
 }
 
 // TEST510: Verify mixing quoted and unquoted values in same URN
 function test510_mixed_quoted_unquoted() {
   const urn = TaggedUrn.fromString('cap:a="Quoted";b=simple');
-  assertEqual(urn.getTag('a'), 'Quoted', 'Quoted value should preserve case');
-  assertEqual(urn.getTag('b'), 'simple', 'Unquoted value should be lowercase');
+  assertConstraint(urn.getTag('a'), Constraint.exact('Quoted'), 'Quoted value should preserve case');
+  assertConstraint(urn.getTag('b'), Constraint.exact('simple'), 'Unquoted value should be lowercase');
 }
 
 // TEST511: Verify error on unterminated quoted value
@@ -257,14 +264,14 @@ function test515_round_trip_quoted() {
   const serialized = urn.toString();
   const reparsed = TaggedUrn.fromString(serialized);
   assert(urn.equals(reparsed), 'Should round-trip quoted values');
-  assertEqual(reparsed.getTag('key'), 'Value With Spaces', 'Should preserve quoted value');
+  assertConstraint(reparsed.getTag('key'), Constraint.exact('Value With Spaces'), 'Should preserve quoted value');
 }
 
 // TEST516: Verify escape sequences round-trip correctly
 function test516_round_trip_escapes() {
   const original = 'cap:key="value\\"with\\\\escapes"';
   const urn = TaggedUrn.fromString(original);
-  assertEqual(urn.getTag('key'), 'value"with\\escapes', 'Should parse escapes');
+  assertConstraint(urn.getTag('key'), Constraint.exact('value"with\\escapes'), 'Should parse escapes');
   const serialized = urn.toString();
   const reparsed = TaggedUrn.fromString(serialized);
   assert(urn.equals(reparsed), 'Should round-trip escapes');
@@ -354,7 +361,7 @@ function test521_matching_case_sensitive_values() {
   assert(cap1.hasMarkerTag('Generate'), 'Should match marker with mixed case key');
 
   // Case-insensitive keyed tag lookup.
-  assertEqual(cap1.getTag('EXT'), 'pdf', 'Should lookup keyed tag with uppercase key');
+  assertConstraint(cap1.getTag('EXT'), Constraint.exact('pdf'), 'Should lookup keyed tag with uppercase key');
   assert(cap1.hasTag('ext', 'pdf'), 'hasTag should match with lowercase key');
   assert(cap1.hasTag('EXT', 'pdf'), 'hasTag should match with uppercase key');
 }
@@ -427,7 +434,7 @@ function test524_builder() {
     .build();
 
   assert(cap.hasMarkerTag('generate'), 'Should build with generate marker');
-  assertEqual(cap.getTag('output'), 'binary', 'Should build with output tag');
+  assertConstraint(cap.getTag('output'), Constraint.exact('binary'), 'Should build with output tag');
 }
 
 // TEST525: Verify builder preserves case in quoted values
@@ -435,7 +442,7 @@ function test525_builder_preserves_case() {
   const urn = new TaggedUrnBuilder('cap')
     .tag('key', 'ValueWithCase')
     .build();
-  assertEqual(urn.getTag('key'), 'ValueWithCase', 'Should preserve case in builder');
+  assertConstraint(urn.getTag('key'), Constraint.exact('ValueWithCase'), 'Should preserve case in builder');
 }
 
 // ============================================================================
@@ -562,8 +569,8 @@ function test532_empty_with_custom_prefix() {
 // TEST533: Verify forward slashes and colons in tag components
 function test533_extended_character_support() {
   const cap = TaggedUrn.fromString('cap:url=https://example_org/api;path=/some/file');
-  assertEqual(cap.getTag('url'), 'https://example_org/api', 'Should support colons and slashes');
-  assertEqual(cap.getTag('path'), '/some/file', 'Should support slashes');
+  assertConstraint(cap.getTag('url'), Constraint.exact('https://example_org/api'), 'Should support colons and slashes');
+  assertConstraint(cap.getTag('path'), Constraint.exact('/some/file'), 'Should support slashes');
 }
 
 // TEST534: Verify wildcard cannot be used as a key
@@ -575,7 +582,7 @@ function test534_wildcard_restrictions() {
   );
 
   const cap = TaggedUrn.fromString('cap:key=*');
-  assertEqual(cap.getTag('key'), '*', 'Should accept wildcard in value');
+  assertConstraint(cap.getTag('key'), Constraint.present(), 'Should accept wildcard in value');
 }
 
 // TEST535: Verify duplicate keys are rejected with error
@@ -587,22 +594,24 @@ function test535_duplicate_key_rejection() {
   );
 }
 
-// TEST536: Verify purely numeric keys are rejected
+// TEST536: Verify keys that begin with a digit are rejected and digits after the first letter are allowed
 function test536_numeric_key_restriction() {
   assertThrows(
     () => TaggedUrn.fromString('cap:123=value'),
-    ErrorCodes.NUMERIC_KEY,
+    ErrorCodes.INVALID_CHARACTER,
     'Should reject numeric keys'
+  );
+  assertThrows(
+    () => TaggedUrn.fromString('cap:123key=value'),
+    ErrorCodes.INVALID_CHARACTER,
+    'Should reject keys that begin with a digit'
   );
 
   const mixedKey1 = TaggedUrn.fromString('cap:key123=value');
-  assertEqual(mixedKey1.getTag('key123'), 'value', 'Should allow mixed alphanumeric keys');
-
-  const mixedKey2 = TaggedUrn.fromString('cap:123key=value');
-  assertEqual(mixedKey2.getTag('123key'), 'value', 'Should allow mixed alphanumeric keys');
+  assertConstraint(mixedKey1.getTag('key123'), Constraint.exact('value'), 'Should allow digits after the first letter');
 
   const numericValue = TaggedUrn.fromString('cap:key=123');
-  assertEqual(numericValue.getTag('key'), '123', 'Should allow numeric values');
+  assertConstraint(numericValue.getTag('key'), Constraint.exact('123'), 'Should allow numeric values');
 }
 
 // TEST537: Verify empty values (key=) cause error
@@ -637,14 +646,14 @@ function test538_has_tag_case_sensitive() {
 
 // TEST539: Verify withTag preserves value case
 function test539_with_tag_preserves_value() {
-  const urn = TaggedUrn.empty('cap').withTag('key', 'ValueWithCase');
-  assertEqual(urn.getTag('key'), 'ValueWithCase', 'Should preserve value case');
+  const urn = TaggedUrn.empty('cap').withTag('key', Constraint.exact('ValueWithCase'));
+  assertConstraint(urn.getTag('key'), Constraint.exact('ValueWithCase'), 'Should preserve value case');
 }
 
 // TEST540: Verify withTag rejects empty value
 function test540_with_tag_rejects_empty_value() {
   assertThrows(
-    () => TaggedUrn.empty('cap').withTag('key', ''),
+    () => TaggedUrn.empty('cap').withTag('key', Constraint.exact('')),
     ErrorCodes.EMPTY_TAG,
     'Should reject empty value in withTag'
   );
@@ -787,16 +796,16 @@ function test552_matching_different_prefixes_error() {
 // TEST553: Single value-less tag parses as wildcard
 function test553_valueless_tag_parsing_single() {
   const urn = TaggedUrn.fromString('cap:optimize');
-  assertEqual(urn.getTag('optimize'), '*', 'Should parse value-less tag as wildcard');
+  assertConstraint(urn.getTag('optimize'), Constraint.present(), 'Should parse value-less tag as wildcard');
   assertEqual(urn.toString(), 'cap:optimize', 'Should serialize without =*');
 }
 
 // TEST554: Multiple value-less tags parse correctly
 function test554_valueless_tag_parsing_multiple() {
   const urn = TaggedUrn.fromString('cap:fast;optimize;secure');
-  assertEqual(urn.getTag('fast'), '*', 'Should parse first value-less tag');
-  assertEqual(urn.getTag('optimize'), '*', 'Should parse second value-less tag');
-  assertEqual(urn.getTag('secure'), '*', 'Should parse third value-less tag');
+  assertConstraint(urn.getTag('fast'), Constraint.present(), 'Should parse first value-less tag');
+  assertConstraint(urn.getTag('optimize'), Constraint.present(), 'Should parse second value-less tag');
+  assertConstraint(urn.getTag('secure'), Constraint.present(), 'Should parse third value-less tag');
   assertEqual(urn.toString(), 'cap:fast;optimize;secure', 'Should serialize alphabetically');
 }
 
@@ -804,9 +813,9 @@ function test554_valueless_tag_parsing_multiple() {
 function test555_valueless_tag_mixed_with_valued() {
   const urn = TaggedUrn.fromString('cap:generate;optimize;ext=pdf;secure');
   assert(urn.hasMarkerTag('generate'), 'Should parse valued tag');
-  assertEqual(urn.getTag('optimize'), '*', 'Should parse value-less tag');
-  assertEqual(urn.getTag('ext'), 'pdf', 'Should parse valued tag');
-  assertEqual(urn.getTag('secure'), '*', 'Should parse value-less tag');
+  assertConstraint(urn.getTag('optimize'), Constraint.present(), 'Should parse value-less tag');
+  assertConstraint(urn.getTag('ext'), Constraint.exact('pdf'), 'Should parse valued tag');
+  assertConstraint(urn.getTag('secure'), Constraint.present(), 'Should parse value-less tag');
   assertEqual(urn.toString(), 'cap:ext=pdf;generate;optimize;secure', 'Should serialize alphabetically');
 }
 
@@ -814,7 +823,7 @@ function test555_valueless_tag_mixed_with_valued() {
 function test556_valueless_tag_at_end() {
   const urn = TaggedUrn.fromString('cap:generate;optimize');
   assert(urn.hasMarkerTag('generate'), 'Should parse valued tag');
-  assertEqual(urn.getTag('optimize'), '*', 'Should parse value-less tag');
+  assertConstraint(urn.getTag('optimize'), Constraint.present(), 'Should parse value-less tag');
   assertEqual(urn.toString(), 'cap:generate;optimize', 'Should serialize correctly');
 }
 
@@ -884,9 +893,9 @@ function test561_valueless_tag_roundtrip() {
 // TEST562: Valueless tags normalized to lowercase
 function test562_valueless_tag_case_normalization() {
   const urn = TaggedUrn.fromString('cap:OPTIMIZE;Fast;SECURE');
-  assertEqual(urn.getTag('optimize'), '*', 'Should normalize to lowercase');
-  assertEqual(urn.getTag('fast'), '*', 'Should normalize to lowercase');
-  assertEqual(urn.getTag('secure'), '*', 'Should normalize to lowercase');
+  assertConstraint(urn.getTag('optimize'), Constraint.present(), 'Should normalize to lowercase');
+  assertConstraint(urn.getTag('fast'), Constraint.present(), 'Should normalize to lowercase');
+  assertConstraint(urn.getTag('secure'), Constraint.present(), 'Should normalize to lowercase');
   assertEqual(urn.toString(), 'cap:fast;optimize;secure', 'Should serialize as lowercase');
 }
 
@@ -922,12 +931,12 @@ function test564_valueless_tag_compatibility() {
 function test565_valueless_numeric_key_still_rejected() {
   assertThrows(
     () => TaggedUrn.fromString('cap:123'),
-    ErrorCodes.NUMERIC_KEY,
+    ErrorCodes.INVALID_CHARACTER,
     'Should reject numeric key'
   );
   assertThrows(
     () => TaggedUrn.fromString('cap:generate;456'),
-    ErrorCodes.NUMERIC_KEY,
+    ErrorCodes.INVALID_CHARACTER,
     'Should reject numeric key'
   );
 }
@@ -972,7 +981,7 @@ function test566_whitespace_in_input_rejected() {
 // value "?" and serialize as the canonical prefix form `?x`.
 function test567_unspecified_question_mark_parsing() {
   const urn = TaggedUrn.fromString('cap:ext=?');
-  assertEqual(urn.getTag('ext'), '?', 'Should parse ? as unspecified');
+  assertConstraint(urn.getTag('ext'), Constraint.unconstrained(), 'Should parse ? as unspecified');
   assertEqual(urn.toString(), 'cap:?ext', 'Canonical of x=? is the prefix form ?x');
 }
 
@@ -980,7 +989,7 @@ function test567_unspecified_question_mark_parsing() {
 // value "!" and serialize as the canonical prefix form `!x`.
 function test568_must_not_have_exclamation_parsing() {
   const urn = TaggedUrn.fromString('cap:ext=!');
-  assertEqual(urn.getTag('ext'), '!', 'Should parse ! as must-not-have');
+  assertConstraint(urn.getTag('ext'), Constraint.absent(), 'Should parse ! as must-not-have');
   assertEqual(urn.toString(), 'cap:!ext', 'Canonical of x=! is the prefix form !x');
 }
 
@@ -1352,6 +1361,369 @@ function test392_least_upper_bound() {
   );
 }
 
+// =========================================================================
+// ORDER-THEORETIC RELATIONS & BUILDER TESTS (TEST578-598)
+// =========================================================================
+
+// TEST578: Equivalent URNs with identical tag sets
+function test578_equivalent_identical_tags() {
+  const a = TaggedUrn.fromString('cap:ext=pdf;generate;in=media:;out=media:');
+  const b = TaggedUrn.fromString('cap:ext=pdf;generate;in=media:;out=media:');
+  assert(a.isEquivalent(b), 'Equivalent should be true');
+  assert(b.isEquivalent(a), 'Equivalent should be symmetric');
+}
+
+// TEST579: Non-equivalent URNs where one is more specific
+function test579_not_equivalent_when_one_more_specific() {
+  const general = TaggedUrn.fromString('media:');
+  const specific = TaggedUrn.fromString('media:pdf');
+  assert(!general.isEquivalent(specific), 'Should not be equivalent');
+  assert(!specific.isEquivalent(general), 'Should not be equivalent (reverse)');
+}
+
+// TEST580: Comparable URNs on the same specialization chain
+function test580_comparable_specialization_chain() {
+  const general = TaggedUrn.fromString('media:');
+  const specific = TaggedUrn.fromString('media:pdf');
+  assert(general.isComparable(specific), 'Should be comparable');
+  assert(specific.isComparable(general), 'Should be comparable (symmetric)');
+}
+
+// TEST581: Incomparable URNs in different branches of the lattice
+function test581_incomparable_different_branches() {
+  const pdf = TaggedUrn.fromString('media:pdf');
+  const txt = TaggedUrn.fromString('media:enc=utf-8;txt');
+  assert(!pdf.isComparable(txt), 'Should not be comparable');
+  assert(!txt.isComparable(pdf), 'Should not be comparable (reverse)');
+}
+
+// TEST582: Equivalent implies comparable but not vice versa
+function test582_equivalent_implies_comparable() {
+  const a = TaggedUrn.fromString('cap:ext=pdf;in=media:;out=media:;test');
+  const b = TaggedUrn.fromString('cap:ext=pdf;in=media:;out=media:;test');
+  assert(a.isEquivalent(b), 'Should be equivalent');
+  assert(a.isComparable(b), 'Equivalent implies comparable');
+
+  const general = TaggedUrn.fromString('cap:in=media:;out=media:;test');
+  const specific = TaggedUrn.fromString('cap:ext=pdf;in=media:;out=media:;test');
+  assert(!general.isEquivalent(specific), 'Comparable need not be equivalent');
+  assert(general.isComparable(specific), 'General and specific are comparable');
+}
+
+// TEST583: Prefix mismatch returns error for both relations
+function test583_prefix_mismatch_errors() {
+  const cap = TaggedUrn.fromString('cap:in=media:;out=media:;test');
+  const media = TaggedUrn.fromString('media:');
+  assertThrows(() => cap.isEquivalent(media), ErrorCodes.PREFIX_MISMATCH, 'isEquivalent across prefixes');
+  assertThrows(() => cap.isComparable(media), ErrorCodes.PREFIX_MISMATCH, 'isComparable across prefixes');
+}
+
+// TEST584: Empty tag set is comparable to everything with same prefix
+function test584_empty_tags_comparable_to_all() {
+  const empty = TaggedUrn.fromString('media:');
+  const specific = TaggedUrn.fromString('media:pdf;thumbnail');
+  assert(empty.isComparable(specific), 'Empty is comparable to everything');
+  assert(!empty.isEquivalent(specific), 'Empty is not equivalent to a tagged URN');
+  assert(empty.isEquivalent(TaggedUrn.fromString('media:')), 'Empty is equivalent to itself');
+}
+
+// TEST585: String variants of isEquivalent and isComparable
+function test585_string_variants() {
+  const urn = TaggedUrn.fromString('media:pdf');
+  assert(urn.isEquivalentStr('media:pdf'), 'Same tags are equivalent');
+  assert(!urn.isEquivalentStr('media:'), 'Different tags are not equivalent');
+  assert(urn.isComparableStr('media:'), 'On the same chain');
+  assert(!urn.isComparableStr('media:enc=utf-8;txt'), 'Different branch');
+}
+
+// TEST586: Special values (*, !, ?) with isEquivalent and isComparable
+function test586_special_values() {
+  const mustHave = TaggedUrn.fromString('cap:ext');
+  const exact = TaggedUrn.fromString('cap:ext=pdf');
+  const mustNot = TaggedUrn.fromString('cap:ext=!');
+  const unspecified = TaggedUrn.fromString('cap:ext=?');
+
+  assert(!mustHave.isEquivalent(exact), 'Marker and exact are not equivalent');
+  assert(mustHave.isComparable(exact), 'A pdf is some ext');
+
+  assert(!mustNot.isComparable(exact), 'Absent and exact conflict');
+  assert(!mustNot.isEquivalent(exact), 'Absent and exact are not equivalent');
+  assert(!mustNot.isComparable(mustHave), 'Absent and present conflict');
+  assert(!mustNot.isEquivalent(mustHave), 'Absent and present are not equivalent');
+
+  assert(!unspecified.isEquivalent(exact), 'Unconstrained is not exact');
+  assert(!unspecified.isEquivalent(mustHave), 'Unconstrained is not present');
+  assert(!unspecified.isEquivalent(mustNot), 'Unconstrained is not absent');
+  assert(unspecified.isComparable(exact), 'Unconstrained accepts exact');
+  assert(unspecified.isComparable(mustNot), 'Unconstrained accepts absent');
+  assert(unspecified.isEquivalent(TaggedUrn.fromString('cap:')), 'Unconstrained is the empty URN');
+}
+
+// TEST587: Builder fluent API for tag manipulation
+function test587_builder_fluent_api() {
+  const urn = new TaggedUrnBuilder('cap')
+    .marker('generate')
+    .tag('target', 'thumbnail')
+    .tag('format', 'pdf')
+    .tag('output', 'binary')
+    .build();
+  assert(urn.hasMarkerTag('generate'), 'generate marker');
+  assertConstraint(urn.getTag('target'), Constraint.exact('thumbnail'), 'target tag');
+  assertConstraint(urn.getTag('format'), Constraint.exact('pdf'), 'format tag');
+  assertConstraint(urn.getTag('output'), Constraint.exact('binary'), 'output tag');
+}
+
+// TEST588: Builder with custom tags
+function test588_builder_custom_tags() {
+  const urn = new TaggedUrnBuilder('cap')
+    .tag('engine', 'v2')
+    .tag('quality', 'high')
+    .marker('compress')
+    .build();
+  assertConstraint(urn.getTag('engine'), Constraint.exact('v2'), 'engine tag');
+  assertConstraint(urn.getTag('quality'), Constraint.exact('high'), 'quality tag');
+  assert(urn.hasMarkerTag('compress'), 'compress marker');
+}
+
+// TEST589: Builder tag overrides (last value wins)
+function test589_builder_tag_overrides() {
+  const urn = new TaggedUrnBuilder('cap')
+    .marker('convert')
+    .tag('format', 'jpg')
+    .build();
+  assert(urn.hasMarkerTag('convert'), 'convert marker');
+  assertConstraint(urn.getTag('format'), Constraint.exact('jpg'), 'format tag');
+}
+
+// TEST590: Builder empty build returns error (tags required)
+function test590_builder_empty_build() {
+  assertThrows(() => new TaggedUrnBuilder('cap').build(), ErrorCodes.INVALID_FORMAT, 'Empty builder should error');
+}
+
+// TEST591: Builder with single tag
+function test591_builder_single_tag() {
+  const urn = new TaggedUrnBuilder('cap').tag('type', 'utility').build();
+  assertEqual(urn.toString(), 'cap:type=utility', 'toString');
+  assertConstraint(urn.getTag('type'), Constraint.exact('utility'), 'type tag');
+  assertEqual(urn.specificity(), 4, 'An exact value scores 4');
+}
+
+// TEST592: Builder with complex multi-tag URN
+function test592_builder_complex() {
+  const urn = new TaggedUrnBuilder('cap')
+    .tag('type', 'media')
+    .marker('transcode')
+    .tag('target', 'video')
+    .tag('format', 'mp4')
+    .tag('codec', 'h264')
+    .tag('quality', '1080p')
+    .tag('framerate', '30fps')
+    .tag('output', 'binary')
+    .build();
+  assertConstraint(urn.getTag('type'), Constraint.exact('media'), 'type tag');
+  assert(urn.hasMarkerTag('transcode'), 'transcode marker');
+  assertConstraint(urn.getTag('target'), Constraint.exact('video'), 'target tag');
+  assertConstraint(urn.getTag('format'), Constraint.exact('mp4'), 'format tag');
+  assertConstraint(urn.getTag('codec'), Constraint.exact('h264'), 'codec tag');
+  assertConstraint(urn.getTag('quality'), Constraint.exact('1080p'), 'quality tag');
+  assertConstraint(urn.getTag('framerate'), Constraint.exact('30fps'), 'framerate tag');
+  assertConstraint(urn.getTag('output'), Constraint.exact('binary'), 'output tag');
+  // 7 exact values × 4 + 1 marker × 2
+  assertEqual(urn.specificity(), 30, 'specificity');
+}
+
+// TEST593: Builder with wildcards
+function test593_builder_wildcards() {
+  const urn = new TaggedUrnBuilder('cap')
+    .marker('convert')
+    .marker('ext')
+    .marker('quality')
+    .build();
+  assertEqual(urn.toString(), 'cap:convert;ext;quality', 'Markers serialize value-less, sorted');
+  assertEqual(urn.specificity(), 6, '3 markers × 2');
+  assert(urn.hasMarkerTag('convert'), 'convert marker');
+  assert(urn.hasMarkerTag('ext'), 'ext marker');
+  assert(urn.hasMarkerTag('quality'), 'quality marker');
+}
+
+// TEST594: Builder with custom prefix
+function test594_builder_custom_prefix() {
+  const urn = new TaggedUrnBuilder('myapp').tag('key', 'value').build();
+  assertEqual(urn.prefix, 'myapp', 'prefix');
+  assertEqual(urn.toString(), 'myapp:key=value', 'toString');
+}
+
+// TEST595: Builder matching with built URN
+function test595_builder_matching_with_built_urn() {
+  const specificInstance = new TaggedUrnBuilder('cap')
+    .tag('op', 'generate')
+    .tag('target', 'thumbnail')
+    .tag('format', 'pdf')
+    .build();
+  const generalPattern = new TaggedUrnBuilder('cap').tag('op', 'generate').build();
+  const wildcardPattern = new TaggedUrnBuilder('cap')
+    .tag('op', 'generate')
+    .tag('target', 'thumbnail')
+    .marker('ext')
+    .build();
+
+  assert(specificInstance.conformsTo(generalPattern), 'Should conform to general');
+  assert(!specificInstance.conformsTo(wildcardPattern), 'Should not conform to a pattern that requires ext');
+  assert(specificInstance.isMoreSpecificThan(generalPattern), 'Specific is more specific');
+  assertEqual(specificInstance.specificity(), 12, '3 exact × 4');
+  assertEqual(generalPattern.specificity(), 4, '1 exact × 4');
+  assertEqual(wildcardPattern.specificity(), 10, '2 exact × 4 + 1 marker × 2');
+}
+
+// TEST596: Empty delta preserves a more specific concrete instance.
+function test596_empty_delta_preserves_refinement() {
+  const base = TaggedUrn.fromString('media:');
+  const target = TaggedUrn.fromString('media:');
+  const runtime = TaggedUrn.fromString('media:image;png');
+  const delta = target.deltaFrom(base);
+  assertEqual(delta.relationKind, TaggedUrnRelationKind.EQUIVALENT, 'empty delta should be equivalent');
+  assert(delta.isEmpty(), 'empty delta should have no edits');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:image;png', 'empty delta should preserve runtime refinement');
+}
+
+// TEST597: Incomparable replacement rewrites only declared coordinates.
+function test597_incomparable_replacement() {
+  const base = TaggedUrn.fromString('media:enc=utf-8;markdown');
+  const target = TaggedUrn.fromString('media:enc=utf-8;html');
+  const runtime = TaggedUrn.fromString('media:enc=utf-8;lang=en;markdown');
+  const delta = target.deltaFrom(base);
+  assertEqual(delta.relationKind, TaggedUrnRelationKind.INCOMPARABLE, 'markdown -> html should be incomparable');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:enc=utf-8;html;lang=en', 'unrelated runtime refinements must be preserved');
+}
+
+// TEST598: Comparable removal drops only the declared key.
+function test598_comparable_removal() {
+  const base = TaggedUrn.fromString('media:image;png');
+  const target = TaggedUrn.fromString('media:image');
+  const runtime = TaggedUrn.fromString('media:author=me;image;png');
+  const delta = target.deltaFrom(base);
+  assertEqual(delta.relationKind, TaggedUrnRelationKind.COMPARABLE, 'image;png -> image should be comparable');
+  assertEqual(runtime.applyDelta(delta).toString(), 'media:author=me;image', 'only the declared key should be removed');
+}
+
+// =========================================================================
+// TEXT GRAMMAR (TEST6752-TEST6756)
+// =========================================================================
+
+function assertCode(fn, code, message) {
+  assertThrows(fn, code, message);
+}
+
+// TEST6752: An unquoted value that begins with ? or ! is that qualifier (x=?v is x?=v, x=!v is x!=v); a quoted one is literal
+function test6752_qualifier_value_alias() {
+  const p = (s) => TaggedUrn.fromString(s);
+  assert(p('t:x=?v').equals(p('t:x?=v')), 'x=?v is x?=v');
+  assertEqual(p('t:x=?v').toString(), 't:x?=v', 'x=?v prints x?=v');
+  assertConstraint(p('t:x=?v').getTag('x'), Constraint.optionalNot('v'), 'x=?v is optionalNot v');
+  assert(p('t:x=!v').equals(p('t:x!=v')), 'x=!v is x!=v');
+  assertEqual(p('t:x=!v').toString(), 't:x!=v', 'x=!v prints x!=v');
+  assertConstraint(p('t:x=!v').getTag('x'), Constraint.presentNot('v'), 'x=!v is presentNot v');
+
+  for (const refused of ['t:x=?*', 't:x=!?', 't:x=??', 't:x=?!', 't:x=!*', 't:?x=?v', 't:x!=!v']) {
+    assertCode(() => p(refused), ErrorCodes.INVALID_CHARACTER, `${refused} must be refused`);
+  }
+
+  assertEqual(p('t:x=?').toString(), 't:?x', 'x=? prints ?x');
+  assertEqual(p('t:x=!').toString(), 't:!x', 'x=! prints !x');
+
+  const literal = p('t:x="?v"');
+  assertConstraint(literal.getTag('x'), Constraint.exact('?v'), 'quoted ?v is exact');
+  assertEqual(literal.toString(), 't:x="?v"', 'exact ?v prints quoted');
+  assert(p(literal.toString()).equals(literal), 'exact ?v reads back');
+  assert(!literal.equals(p('t:x?=v')), 'exact ?v is not x?=v');
+}
+
+// TEST6753: The prefix and every key are identifiers (an ASCII letter, then ASCII letters, digits and -), lowered, in parsing and in every constructor
+function test6753_prefix_and_key_are_identifiers() {
+  for (const refused of ['t:a_b=1', 't:a.b=1', 't:a/b=1', 't:a:b=1', 't:1a=1', 't:é=1', 'my_app:x', '1t:x', 'é:x']) {
+    assertCode(() => TaggedUrn.fromString(refused), ErrorCodes.INVALID_CHARACTER, `${refused} must be refused`);
+  }
+
+  const urn = TaggedUrn.fromString('T:A-b1=v');
+  assertEqual(urn.prefix, 't', 'prefix lowered');
+  assertConstraint(urn.getTag('a-b1'), Constraint.exact('v'), 'key lowered');
+
+  assertCode(() => new TaggedUrn('t', { a_b: Constraint.exact('v') }), ErrorCodes.INVALID_CHARACTER, 'constructor key');
+  assertCode(() => TaggedUrn.empty('my_app'), ErrorCodes.INVALID_CHARACTER, 'empty prefix');
+  assertCode(() => new TaggedUrnBuilder('1t'), ErrorCodes.INVALID_CHARACTER, 'builder prefix');
+  assertCode(() => new TaggedUrnBuilder('t').tag('a.b', 'v'), ErrorCodes.INVALID_CHARACTER, 'builder key');
+  assertCode(() => TaggedUrn.empty('t').withTag('a/b', Constraint.exact('v')), ErrorCodes.INVALID_CHARACTER, 'withTag key');
+  assertCode(() => TaggedUrn.leastUpperBound('a:b', []), ErrorCodes.INVALID_CHARACTER, 'bound prefix');
+
+  const built = new TaggedUrnBuilder('T').tag('Key-2', 'v').build();
+  assert(built.equals(TaggedUrn.fromString('t:key-2=v')), 'builder lowers prefix and key');
+}
+
+/** `value` written as a quoted literal: `"`, with `"` and `\` escaped. */
+function quotedLiteral(value) {
+  let out = '"';
+  for (const c of value) {
+    out += (c === '"' || c === '\\') ? `\\${c}` : c;
+  }
+  return out + '"';
+}
+
+// TEST6754: Every value a URN holds prints so that it reads back as itself
+function test6754_every_value_reads_back() {
+  for (const value of ['a,b', 'a(b)', 'x@y#z', 'a\tb', 'Été', 'a b', 'a;b', 'a=b', 'q"q', 'b\\s', 'plain', '?v',
+    '!v', '*', '?', '!', '*v']) {
+    const urn = TaggedUrn.fromString(`t:k=${quotedLiteral(value)}`);
+    assertConstraint(urn.getTag('k'), Constraint.exact(value), `stored value of ${JSON.stringify(value)}`);
+    const printed = urn.toString();
+    const reparsed = TaggedUrn.fromString(printed);
+    assert(reparsed.equals(urn), `${JSON.stringify(value)} printed as ${printed} reads back`);
+    assertConstraint(reparsed.getTag('k'), Constraint.exact(value), `reread value of ${JSON.stringify(value)}`);
+  }
+}
+
+// TEST6755: An unquoted value takes any character but ; = " \ and whitespace
+function test6755_unquoted_value_takes_any_non_separator() {
+  const urn = TaggedUrn.fromString('t:k=a,b(c)');
+  assertConstraint(urn.getTag('k'), Constraint.exact('a,b(c)'), 'commas and parentheses stand bare');
+
+  const symbols = TaggedUrn.fromString("t:k=x@y#z+%&~'[]{}<>^$|");
+  assertConstraint(symbols.getTag('k'), Constraint.exact("x@y#z+%&~'[]{}<>^$|"), 'symbols stand bare');
+
+  assertConstraint(TaggedUrn.fromString('t:k=A,B').getTag('k'), Constraint.exact('a,b'), 'bare values are lowered');
+
+  assertCode(() => TaggedUrn.fromString('t:k=a\tb'), ErrorCodes.INVALID_CHARACTER, 'a tab is refused bare');
+
+  for (const u of [urn, symbols]) {
+    assert(TaggedUrn.fromString(u.toString()).equals(u), `${u.toString()} reads back`);
+  }
+}
+
+// TEST6756: A quoted value is the literal value: a quoted *, ? or ! is never a sigil, and a quoted ?=v is never a qualifier
+function test6756_quoted_value_is_literal() {
+  const p = (s) => TaggedUrn.fromString(s);
+  const star = p('t:x="*"');
+  assertConstraint(star.getTag('x'), Constraint.exact('*'), 'quoted * is exact');
+  assert(!star.equals(p('t:x')), 'exact * is not the marker');
+  assertEqual(star.toString(), 't:x="*"', 'exact * prints quoted');
+  assert(p(star.toString()).equals(star), 'exact * reads back');
+  assert(star.conformsTo(p('t:x')), 'exact * is some x');
+  assert(!p('t:x').conformsTo(star), 'some x is not exactly *');
+
+  const question = p('t:x="?"');
+  assertConstraint(question.getTag('x'), Constraint.exact('?'), 'quoted ? is exact');
+  assert(!question.isEquivalent(p('t:?x')), 'exact ? is not unconstrained');
+
+  assertConstraint(p('t:x="!"').getTag('x'), Constraint.exact('!'), 'quoted ! is exact');
+  assertConstraint(p('t:x="?=v"').getTag('x'), Constraint.exact('?=v'), 'quoted ?=v is exact');
+
+  const optional = p('t:?x="*"');
+  assertConstraint(optional.getTag('x'), Constraint.optionalNot('*'), '?x="*" is optionalNot *');
+  assertEqual(optional.toString(), 't:x?="*"', 'optionalNot * prints quoted');
+  assert(p(optional.toString()).equals(optional), 'optionalNot * reads back');
+
+  assert(new TaggedUrnBuilder('t').tag('x', '*').build().equals(star), "the builder's exact value is literal");
+}
+
 function runTests() {
   const tests = [
     ['TEST392', test392_least_upper_bound],
@@ -1447,6 +1819,34 @@ function runTests() {
     ['TEST575', test575_serialization_round_trip_special_values],
     ['TEST576', test576_compatibility_with_special_values],
     ['TEST577', test577_specificity_with_special_values],
+    // Order-theoretic relations, builder, delta (TEST578-TEST598)
+    ['TEST578', test578_equivalent_identical_tags],
+    ['TEST579', test579_not_equivalent_when_one_more_specific],
+    ['TEST580', test580_comparable_specialization_chain],
+    ['TEST581', test581_incomparable_different_branches],
+    ['TEST582', test582_equivalent_implies_comparable],
+    ['TEST583', test583_prefix_mismatch_errors],
+    ['TEST584', test584_empty_tags_comparable_to_all],
+    ['TEST585', test585_string_variants],
+    ['TEST586', test586_special_values],
+    ['TEST587', test587_builder_fluent_api],
+    ['TEST588', test588_builder_custom_tags],
+    ['TEST589', test589_builder_tag_overrides],
+    ['TEST590', test590_builder_empty_build],
+    ['TEST591', test591_builder_single_tag],
+    ['TEST592', test592_builder_complex],
+    ['TEST593', test593_builder_wildcards],
+    ['TEST594', test594_builder_custom_prefix],
+    ['TEST595', test595_builder_matching_with_built_urn],
+    ['TEST596', test596_empty_delta_preserves_refinement],
+    ['TEST597', test597_incomparable_replacement],
+    ['TEST598', test598_comparable_removal],
+    // Text grammar (TEST6752-TEST6756)
+    ['TEST6752', test6752_qualifier_value_alias],
+    ['TEST6753', test6753_prefix_and_key_are_identifiers],
+    ['TEST6754', test6754_every_value_reads_back],
+    ['TEST6755', test6755_unquoted_value_takes_any_non_separator],
+    ['TEST6756', test6756_quoted_value_is_literal],
     // JS-only tests
     ['JS-ONLY: op tag rename', test0001_JsOnly_op_tag_rename],
     // Convenience method tests
@@ -1491,153 +1891,3 @@ if (import.meta.url === pathToFileURL(process.argv[1]).href) {
 }
 
 export { runTests };
-
-// =========================================================================
-// ORDER-THEORETIC RELATIONS & BUILDER TESTS (TEST578-595)
-// =========================================================================
-
-// TEST578: Equivalent URNs with identical tag sets
-(() => {
-  const a = TaggedUrn.fromString('cap:generate;ext=pdf');
-  const b = TaggedUrn.fromString('cap:ext=pdf;generate;in=media:;out=media:');
-  assert(a.isEquivalent(b), 'TEST578: Equivalent should be true');
-  assert(b.isEquivalent(a), 'TEST578: Equivalent should be symmetric');
-})();
-
-// TEST579: Non-equivalent URNs where one is more specific
-(() => {
-  const general = TaggedUrn.fromString('media:');
-  const specific = TaggedUrn.fromString('media:pdf');
-  assert(!general.isEquivalent(specific), 'TEST579: Should not be equivalent');
-  assert(!specific.isEquivalent(general), 'TEST579: Should not be equivalent (reverse)');
-})();
-
-// TEST580: Comparable URNs on the same specialization chain
-(() => {
-  const general = TaggedUrn.fromString('media:');
-  const specific = TaggedUrn.fromString('media:pdf');
-  assert(general.isComparable(specific), 'TEST580: Should be comparable');
-  assert(specific.isComparable(general), 'TEST580: Should be comparable (symmetric)');
-})();
-
-// TEST581: Incomparable URNs in different branches
-(() => {
-  const pdf = TaggedUrn.fromString('media:pdf');
-  const txt = TaggedUrn.fromString('media:enc=utf-8;txt');
-  assert(!pdf.isComparable(txt), 'TEST581: Should not be comparable');
-  assert(!txt.isComparable(pdf), 'TEST581: Should not be comparable (reverse)');
-})();
-
-// TEST582: Equivalent implies comparable
-(() => {
-  const a = TaggedUrn.fromString('cap:test;ext=pdf');
-  const b = TaggedUrn.fromString('cap:test;ext=pdf');
-  assert(a.isEquivalent(b), 'TEST582: Should be equivalent');
-  assert(a.isComparable(b), 'TEST582: Equivalent implies comparable');
-})();
-
-// TEST583: Prefix mismatch errors
-(() => {
-  const cap = TaggedUrn.fromString('cap:in=media:;out=media:;test');
-  const media = TaggedUrn.fromString('media:');
-  assertThrowsAny(() => cap.isEquivalent(media), 'TEST583: Prefix mismatch should error');
-  assertThrowsAny(() => cap.isComparable(media), 'TEST583: Prefix mismatch should error');
-})();
-
-// TEST587: Builder fluent API
-(() => {
-  const urn = new TaggedUrnBuilder('cap')
-    .tag('op', 'generate')
-    .tag('target', 'thumbnail')
-    .tag('format', 'pdf')
-    .build();
-  assert(urn.hasMarkerTag('generate'), 'TEST587: op tag');
-  assertEqual(urn.getTag('target'), 'thumbnail', 'TEST587: target tag');
-  assertEqual(urn.getTag('format'), 'pdf', 'TEST587: format tag');
-})();
-
-// TEST590: Builder empty build error
-(() => {
-  assertThrowsAny(() => new TaggedUrnBuilder('cap').build(), 'TEST590: Empty builder should error');
-})();
-
-// TEST591: Builder with single tag
-(() => {
-  const urn = new TaggedUrnBuilder('cap').tag('type', 'utility').build();
-  assertEqual(urn.toString(), 'cap:type=utility', 'TEST591: toString');
-  assertEqual(urn.specificity(), 3, 'TEST591: specificity');
-})();
-
-// TEST593: Builder with wildcards
-(() => {
-  const urn = new TaggedUrnBuilder('cap')
-    .tag('op', 'convert')
-    .marker('ext')
-    .marker('quality')
-    .build();
-  assertEqual(urn.toString(), 'cap:ext;convert;quality', 'TEST593: toString with wildcards');
-  assertEqual(urn.specificity(), 7, 'TEST593: specificity');
-})();
-
-// TEST595: Builder matching
-(() => {
-  const specificInstance = new TaggedUrnBuilder('cap')
-    .tag('op', 'generate')
-    .tag('target', 'thumbnail')
-    .tag('format', 'pdf')
-    .build();
-  const generalPattern = new TaggedUrnBuilder('cap').tag('op', 'generate').build();
-  const wildcardPattern = new TaggedUrnBuilder('cap')
-    .tag('op', 'generate')
-    .tag('target', 'thumbnail')
-    .marker('ext')
-    .build();
-  
-  assert(specificInstance.conformsTo(generalPattern), 'TEST595: Should conform to general');
-  assert(!specificInstance.conformsTo(wildcardPattern), 'TEST595: Should not conform to wildcard pattern');
-  assertEqual(specificInstance.specificity(), 9, 'TEST595: specific specificity');
-  assertEqual(generalPattern.specificity(), 3, 'TEST595: general specificity');
-  assertEqual(wildcardPattern.specificity(), 8, 'TEST595: wildcard specificity');
-})();
-
-// Builder rejects empty value
-(() => {
-  assertThrows(
-    () => new TaggedUrnBuilder('cap').tag('key', ''),
-    ErrorCodes.EMPTY_TAG,
-    'Builder should reject empty value'
-  );
-})();
-
-// TEST596: Empty delta preserves a more specific concrete instance.
-(() => {
-  const base = TaggedUrn.fromString('media:');
-  const target = TaggedUrn.fromString('media:');
-  const runtime = TaggedUrn.fromString('media:image;png');
-  const delta = target.deltaFrom(base);
-  assertEqual(delta.relationKind, TaggedUrnRelationKind.EQUIVALENT, 'TEST596: empty delta should be equivalent');
-  assert(delta.isEmpty(), 'TEST596: empty delta should have no edits');
-  assertEqual(runtime.applyDelta(delta).toString(), 'media:image;png', 'TEST596: empty delta should preserve runtime refinement');
-})();
-
-// TEST597: Incomparable replacement rewrites only declared coordinates.
-(() => {
-  const base = TaggedUrn.fromString('media:enc=utf-8;markdown');
-  const target = TaggedUrn.fromString('media:enc=utf-8;html');
-  const runtime = TaggedUrn.fromString('media:enc=utf-8;lang=en;markdown');
-  const delta = target.deltaFrom(base);
-  assertEqual(delta.relationKind, TaggedUrnRelationKind.INCOMPARABLE, 'TEST597: markdown -> html should be incomparable');
-  assertEqual(runtime.applyDelta(delta).toString(), 'media:enc=utf-8;html;lang=en', 'TEST597: unrelated runtime refinements must be preserved');
-})();
-
-// TEST598: Comparable removal drops only the declared key.
-(() => {
-  const base = TaggedUrn.fromString('media:image;png');
-  const target = TaggedUrn.fromString('media:image');
-  const runtime = TaggedUrn.fromString('media:author=me;image;png');
-  const delta = target.deltaFrom(base);
-  assertEqual(delta.relationKind, TaggedUrnRelationKind.COMPARABLE, 'TEST598: image;png -> image should be comparable');
-  assertEqual(runtime.applyDelta(delta).toString(), 'media:author=me;image', 'TEST598: only the declared key should be removed');
-})();
-
-console.log('All tests passed!');

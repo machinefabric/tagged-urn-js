@@ -15,7 +15,6 @@
     "formal/index.js",
     "formal/index.d.ts",
     "formal/program.wasm",
-    "RULES.md",
     "README.md"
   ],
   "keywords": [
@@ -37,5 +36,5 @@
     "test": "node tagged-urn.test.js"
   },
   "type": "module",
-  "version": "1.166.0"
+  "version": "1.167.7"
 }

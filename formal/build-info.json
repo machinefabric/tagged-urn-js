@@ -1,10 +1,10 @@
 {
-  "build_key": "c0eb7fb2ef7e794d8393d8caf094c7fce28192cdd16e2877c768223f92c8f86d",
+  "build_key": "98f07432ddb570d51d7f8c79c3a864d948760f9499455f99be3fcdb589818ea8",
   "lean_version": "4.34.1",
   "lean_githash": "5045d0056413266e57c625dcd7c365b10e377c52",
   "bir_version": 3,
   "adapter_version": 3,
-  "lungo_version": "1.127.0",
+  "lungo_version": "1.126.0",
   "runtime_abi": 3,
   "worker_identity": "220c75476c1cb448ffb8272efd216c9332c7c8dd21e39d0b226a3e618bebbe57",
   "input_digests": {
@@ -24,8 +24,8 @@
     "<package:lungo>/Lungo/Trace.lean": "f6f0735df8f533ef42e71cc5f5be73462fcac902c38f56f3d3411b28816a57bf",
     "<package:lungo>/lakefile.toml": "86a3441c15d147c6bfc13c48f84749bbff47bf1d7f859443d41d21642810964a",
     "TaggedUrn/Constraint.lean": "20d93e3ff2482334a7288262c6fb229675e13696af5712dcec1af2f3fe6e4028",
-    "TaggedUrn/Exec.lean": "d8eb4db6b96b06895cb2b0c89731f81c7335734d712960751e0921bdab0a737e",
-    "TaggedUrn/Join.lean": "fc725e93953004569da2965e7ff10c13efd868f5cabee9d23ce9300eef3d662e",
+    "TaggedUrn/Exec.lean": "1229c14657279e7237d88039a2411e223ffd89c8b86619f8de27f4f2d63a93d7",
+    "TaggedUrn/Join.lean": "cf28a1fe36ae2ceb7dacab0263243641aa96e0f7ac5cdfdf54fd4fe695409bbb",
     "TaggedUrn/Sorted.lean": "63673529b50aeb2faa578b8852be2414d2a3df9e03e2685f6a5a67ebf6da2c9d",
     "TaggedUrn/Urn.lean": "6c1905639773812f839ae25bcf12b4efcc653a342e3419938b25f04b0c0ff342",
     "lake-manifest.json": "6fc7cf00479951a2d966cc057bbf91708c78a4895fe8aedfa4d9cf80bf2c9965",
@@ -35,9 +35,9 @@
   "project": ".",
   "link_directives": [],
   "output_digests": {
-    "assurance.json": "44aacd09f199f93f8bd093cc3301470c360f74223eb5b1bf59902ca13865a5cd",
-    "index.d.ts": "77ee42c25497e4b36fddc854cb403b9d78c8c8d3087345786711fa88157761b2",
-    "index.js": "7b604ffa788afeb07eeff22054d06aa43a9a71ce941d23fd6fe9dfacbf3f9e2f"
+    "assurance.json": "972690e2afb196726d555b6ff3ed7318cd3e6ed90eb0e1db79b20921259a86af",
+    "index.d.ts": "014153f47be78b3eb2500e4521907e72ecf7acfd1bfb22f416a9196eb8d279cd",
+    "index.js": "25e30bdfb15bf17f9e714d25c60b049f4329db3f5bf8952dd23791bf9805d35a"
   },
   "platform_products": [
     "program.wasm"

@@ -15,7 +15,6 @@
     "formal/index.js",
     "formal/index.d.ts",
     "formal/program.wasm",
-    "RULES.md",
     "README.md"
   ],
   "keywords": [
