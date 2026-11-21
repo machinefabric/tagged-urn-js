@@ -79,6 +79,8 @@ console.log(best.toString()); // "cap:ext=pdf;generate" (most specific)
 - `accepts(instance)` - Check if this URN (as pattern) accepts an instance
 - `specificity()` - Get specificity score for matching
 - `isMoreSpecificThan(other)` - Compare specificity
+- `compare(other)` - Order by parts: prefix, then each tag by key, constraint form, value
+- `TaggedUrn.writeValue(value)` - A value as a tag writes it: bare, or quoted when it must be
 - `equals(other)` - Check equality
 
 ### TaggedUrnBuilder Class

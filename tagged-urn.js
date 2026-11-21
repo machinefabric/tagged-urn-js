@@ -289,6 +289,24 @@ function compareCodePoints(a, b) {
   return x.length - y.length;
 }
 
+const FORM_ORDER = Object.freeze({
+  unconstrained: 0,
+  optionalNot: 1,
+  present: 2,
+  presentNot: 3,
+  exact: 4,
+  absent: 5,
+});
+
+/** A stored constraint's form's place in the order of URNs: the truth table's. */
+function formOrder(c) {
+  const order = FORM_ORDER[c.kind];
+  if (order === undefined) {
+    throw new Error(`tagged-urn: stored constraint ${JSON.stringify(c)}`);
+  }
+  return order;
+}
+
 /**
  * Whether an instance's constraint satisfies a pattern's at one key
  * (`Constraint.missing()` for a key the URN omits, as `TaggedUrn.constraint`
@@ -358,6 +376,17 @@ class TaggedUrn {
     return Object.keys(this.tags)
       .sort(compareCodePoints)
       .map((key) => [key, this.tags[key]]);
+  }
+
+  /**
+   * A value as a tag writes it: bare, or quoted when it must be to read back
+   * as itself.
+   *
+   * @param {string} value
+   * @returns {string}
+   */
+  static writeValue(value) {
+    return writeValue(value);
   }
 
   /**
@@ -1182,6 +1211,36 @@ class TaggedUrn {
     }
 
     return true;
+  }
+
+  /**
+   * The order of URNs: by their parts, never their text. The prefix, then the
+   * tags in key order, each by its key, then by its constraint's form in the
+   * truth table's order (unconstrained, optionalNot, present, presentNot,
+   * exact, absent), then by its value; a URN whose tags are the beginning of
+   * another's stands first. Keys and values are ordered by code point. The
+   * text would order `file;sample` after `file-path`, wherever one key is the
+   * beginning of another.
+   *
+   * @param {TaggedUrn} other
+   * @returns {number} Negative, zero or positive as this stands before, with or after other
+   */
+  compare(other) {
+    const byPrefix = compareCodePoints(this.prefix, other.prefix);
+    if (byPrefix !== 0) return byPrefix;
+    const keysA = Object.keys(this.tags).sort(compareCodePoints);
+    const keysB = Object.keys(other.tags).sort(compareCodePoints);
+    for (let i = 0; i < Math.min(keysA.length, keysB.length); i++) {
+      const byKey = compareCodePoints(keysA[i], keysB[i]);
+      if (byKey !== 0) return byKey;
+      const a = this.tags[keysA[i]];
+      const b = other.tags[keysB[i]];
+      const byForm = formOrder(a) - formOrder(b);
+      if (byForm !== 0) return byForm;
+      const byValue = compareCodePoints(a.value ?? '', b.value ?? '');
+      if (byValue !== 0) return byValue;
+    }
+    return keysA.length - keysB.length;
   }
 
   /**

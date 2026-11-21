@@ -1678,6 +1678,8 @@ function test6754_every_value_reads_back() {
     const reparsed = TaggedUrn.fromString(printed);
     assert(reparsed.equals(urn), `${JSON.stringify(value)} printed as ${printed} reads back`);
     assertConstraint(reparsed.getTag('k'), Constraint.exact(value), `reread value of ${JSON.stringify(value)}`);
+    // writeValue writes the value as the URN prints it.
+    assertEqual(printed, `t:k=${TaggedUrn.writeValue(value)}`, `writeValue of ${JSON.stringify(value)}`);
   }
 }
 
@@ -1722,6 +1724,34 @@ function test6756_quoted_value_is_literal() {
   assert(p(optional.toString()).equals(optional), 'optionalNot * reads back');
 
   assert(new TaggedUrnBuilder('t').tag('x', '*').build().equals(star), "the builder's exact value is literal");
+}
+
+// TEST7241: URNs are ordered by their parts, never their text: the prefix, then each tag in key order by key, then by its constraint's form (unconstrained, optionalNot, present, presentNot, exact, absent), then by its value
+function test7241_urns_are_ordered_by_their_parts() {
+  const p = (s) => TaggedUrn.fromString(s);
+  const before = (a, b) => {
+    assert(p(a).compare(p(b)) < 0, `${a} stands before ${b}`);
+    assert(p(b).compare(p(a)) > 0, `${b} stands after ${a}`);
+  };
+
+  // The text orders file-path first; the parts order file first.
+  assert(p('t:file-path').toString() < p('t:file;sample').toString(), 'the text orders file-path first');
+  before('t:file;sample', 't:file-path');
+  // The prefix decides first.
+  before('b:z', 'c:a');
+  // A URN whose tags are the beginning of another's stands first.
+  before('t:file', 't:file;sample');
+  // One key, each form in the truth table's order.
+  const forms = ['t:?x', 't:x?=v', 't:x', 't:x!=v', 't:x=v', 't:!x'];
+  for (let i = 0; i + 1 < forms.length; i++) {
+    before(forms[i], forms[i + 1]);
+  }
+  // One form, values in their own order; a quoted value is a value.
+  before('t:x=ascii', 't:x=utf8');
+  before('t:x="*"', 't:x=a');
+  before('t:x?=a', 't:x?=b');
+  // Writing order is no part of it.
+  assertEqual(p('t:b;a').compare(p('t:a;b')), 0, 'writing order is no part of it');
 }
 
 function runTests() {
@@ -1847,6 +1877,7 @@ function runTests() {
     ['TEST6754', test6754_every_value_reads_back],
     ['TEST6755', test6755_unquoted_value_takes_any_non_separator],
     ['TEST6756', test6756_quoted_value_is_literal],
+    ['TEST7241', test7241_urns_are_ordered_by_their_parts],
     // JS-only tests
     ['JS-ONLY: op tag rename', test0001_JsOnly_op_tag_rename],
     // Convenience method tests
