@@ -5,6 +5,9 @@
 // specificity, one key's match — is decided by code generated from the proved
 // model in ../formal (Lean) by lungo, in ./formal, not written here. It runs as
 // WebAssembly, instantiated once when this module is first imported.
+//
+// Each tag is stored as the constraint it writes: a frozen `{ kind, value? }`,
+// the model's own Constraint, whose kinds are the model's seven.
 
 import { load } from './formal/index.js';
 
@@ -21,7 +24,7 @@ class TaggedUrnError extends Error {
   }
 }
 
-// Error codes
+// Error codes. Code 7 is not used.
 const ErrorCodes = {
   INVALID_FORMAT: 1,
   EMPTY_TAG: 2,
@@ -29,7 +32,6 @@ const ErrorCodes = {
   INVALID_TAG_FORMAT: 4,
   MISSING_PREFIX: 5,
   DUPLICATE_KEY: 6,
-  NUMERIC_KEY: 7,
   UNTERMINATED_QUOTE: 8,
   INVALID_ESCAPE_SEQUENCE: 9,
   EMPTY_PREFIX: 10,
@@ -37,22 +39,45 @@ const ErrorCodes = {
   WHITESPACE_IN_INPUT: 12
 };
 
+/**
+ * What a tag writes about its key: the model's Constraint, a frozen
+ * `{ kind, value? }`. `missing` stands for a key a URN omits and is never
+ * stored. Compare two with `Constraint.equals`.
+ */
+const Constraint = Object.freeze({
+  missing: () => Object.freeze({ kind: 'missing' }),
+  unconstrained: () => Object.freeze({ kind: 'unconstrained' }),
+  optionalNot: (value) => Object.freeze({ kind: 'optionalNot', value }),
+  present: () => Object.freeze({ kind: 'present' }),
+  presentNot: (value) => Object.freeze({ kind: 'presentNot', value }),
+  exact: (value) => Object.freeze({ kind: 'exact', value }),
+  absent: () => Object.freeze({ kind: 'absent' }),
+  /** Whether two constraints are the same form with the same value. */
+  equals: (a, b) => a !== undefined && b !== undefined && a.kind === b.kind && a.value === b.value,
+});
+
+const VALUED_KINDS = new Set(['optionalNot', 'presentNot', 'exact']);
+const BARE_KINDS = new Set(['unconstrained', 'present', 'absent']);
+
 // Parser states for state machine.
 //
-// The parser handles six tag forms — the canonical alphabet of the
-// constraint truth table:
+// The parser reads the six tag forms — the canonical alphabet of the
+// constraint truth table — into the constraint each writes:
 //
-//   | Authored                | Canonical | Stored value | Score | Reading                                  |
-//   |-------------------------|-----------|--------------|------:|------------------------------------------|
-//   | `?x` ≡ `x?`             | `?x`      | "?"          |     0 | no constraint                            |
-//   | `?x=v` ≡ `x?=v`         | `x?=v`    | "?=v"        |     1 | absent OR (present and not v)            |
-//   | `x` ≡ `x=*`             | `x`       | "*"          |     2 | present with any value                   |
-//   | `!x=v` ≡ `x!=v`         | `x!=v`    | "!=v"        |     3 | present and not v                        |
-//   | `x=v`                   | `x=v`     | "v"          |     4 | present and exactly v (`v ∉ {?, !, *}`)  |
-//   | `!x` ≡ `x!`             | `!x`      | "!"          |     5 | absent (must-not-have)                   |
+//   | Authored                 | Canonical | Constraint     | Score | Reading                       |
+//   |--------------------------|-----------|----------------|------:|-------------------------------|
+//   | `?x` ≡ `x?` ≡ `x=?`      | `?x`      | unconstrained  |     0 | no constraint                 |
+//   | `?x=v` ≡ `x?=v` ≡ `x=?v` | `x?=v`    | optionalNot v  |     1 | absent OR (present and not v) |
+//   | `x` ≡ `x=*`              | `x`       | present        |     2 | present with any value        |
+//   | `!x=v` ≡ `x!=v` ≡ `x=!v` | `x!=v`    | presentNot v   |     3 | present and not v             |
+//   | `x=v`                    | `x=v`     | exact v        |     4 | present and exactly v         |
+//   | `!x` ≡ `x!` ≡ `x=!`      | `!x`      | absent         |     5 | absent (must-not-have)        |
 //
-// Disallowed (hard parse errors): `?x?`, `?x?=v`, `!x!=v`, `?!x`,
-// `!?x`, `?x=*`, `!x=*`, mixed prefix+infix.
+// A quoted value is literal: `x="?v"` is the exact value `?v`, and `x="*"`
+// the exact value `*`, never the marker.
+//
+// Disallowed (hard parse errors): `?x?`, `?x?=v`, `!x!=v`, `?!x`, `!?x`,
+// `?x=?v`, `?x=*`, `!x=*`, `x=?*`, `x=!?`, and an empty value.
 const ParseState = {
   EXPECTING_KEY: 0,
   AFTER_PREFIX_QUESTION: 1,
@@ -67,30 +92,85 @@ const ParseState = {
   EXPECTING_SEMI_OR_END: 10
 };
 
-/**
- * Check if a character is valid for a key
- */
+/** Whether a character may begin a prefix or a key: an ASCII letter. */
+function isIdentifierStart(c) {
+  return /^[a-zA-Z]$/.test(c);
+}
+
+/** Whether a character may stand in a prefix or key after its first. */
 function isValidKeyChar(c) {
-  return /[a-zA-Z0-9_\-\/:\.]/.test(c);
+  return /^[a-zA-Z0-9-]$/.test(c);
 }
 
 /**
- * Check if a character is valid for an unquoted value
+ * `s` as an identifier — an ASCII letter, then ASCII letters, digits and `-` —
+ * lowered; `what` names it in the error ("prefix", "key").
+ */
+function identifier(what, s) {
+  if (typeof s !== 'string' || s === '') {
+    if (what === 'prefix') {
+      throw new TaggedUrnError(ErrorCodes.EMPTY_PREFIX, 'Tagged URN prefix cannot be empty');
+    }
+    throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty ${what}`);
+  }
+  const chars = [...s];
+  for (let pos = 0; pos < chars.length; pos++) {
+    const c = chars[pos];
+    const allowed = pos === 0 ? isIdentifierStart(c) : isValidKeyChar(c);
+    if (!allowed) {
+      throw new TaggedUrnError(ErrorCodes.INVALID_CHARACTER, `invalid character '${c}' in ${what} at position ${pos}`);
+    }
+  }
+  return s.toLowerCase();
+}
+
+/**
+ * A constraint a URN can write for `key`, frozen: one of the model's forms
+ * other than `missing`, with a non-empty value where it has one.
+ */
+function checkedConstraint(key, constraint) {
+  const kind = constraint === null || constraint === undefined ? undefined : constraint.kind;
+  if (VALUED_KINDS.has(kind)) {
+    if (typeof constraint.value !== 'string' || constraint.value === '') {
+      throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${key}'`);
+    }
+    return Object.freeze({ kind, value: constraint.value });
+  }
+  if (BARE_KINDS.has(kind)) {
+    return Object.freeze({ kind });
+  }
+  throw new TaggedUrnError(
+    ErrorCodes.INVALID_TAG_FORMAT,
+    `key '${key}' given ${JSON.stringify(constraint)}: a tag's value is a constraint, and a key with no constraint is omitted`
+  );
+}
+
+/**
+ * Whether a character may stand in an unquoted value: anything but the
+ * separators `;` `=`, the quoting characters `"` `\`, and whitespace.
  */
 function isValidUnquotedValueChar(c) {
-  return /[a-zA-Z0-9_\-\/:\.\*\?\!]/.test(c);
+  return !/[;="\\\s]/u.test(c);
+}
+
+/** An ASCII letter lowered, any other character as it is: unquoted values are lowered so. */
+function asciiLower(c) {
+  return /^[A-Z]$/.test(c) ? c.toLowerCase() : c;
 }
 
 /**
- * Check if a value needs quoting for serialization
+ * Whether a value must be quoted to read back as itself: it holds a character
+ * a bare value cannot, an uppercase letter (a bare value is lowered), or
+ * begins with `*`, `?` or `!` (which a bare value reads as a sigil or a
+ * qualifier).
  */
 function needsQuoting(value) {
   for (const c of value) {
-    if (c === ';' || c === '=' || c === '"' || c === '\\' || c === ' ' || c.toUpperCase() !== c.toLowerCase() && c === c.toUpperCase()) {
+    if (!isValidUnquotedValueChar(c) || c !== c.toLowerCase()) {
       return true;
     }
   }
-  return false;
+  return value.startsWith('*') || value.startsWith('?') || value.startsWith('!');
 }
 
 /**
@@ -108,16 +188,71 @@ function quoteValue(value) {
   return result;
 }
 
-// Form classification — six canonical forms plus Missing.
-const Form = {
-  MISSING: 0,
-  NO_CONSTRAINT: 1,        // "?"
-  ABSENT_OR_NOT_VALUE: 2,  // "?=v"
-  MUST_HAVE_ANY: 3,        // "*"
-  PRESENT_NOT_VALUE: 4,    // "!=v"
-  EXACT: 5,
-  MUST_NOT_HAVE: 6,        // "!"
-};
+/** A value as it is written: bare, or quoted when it must be. */
+function writeValue(value) {
+  return needsQuoting(value) ? quoteValue(value) : value;
+}
+
+/** The constraint a value writes under a qualifier (or none). */
+function qualified(qualifier, value) {
+  if (qualifier === null) return Constraint.exact(value);
+  if (qualifier === '?') return Constraint.optionalNot(value);
+  if (qualifier === '!') return Constraint.presentNot(value);
+  throw new Error(`invalid qualifier ${qualifier}`);
+}
+
+/** A qualifier and a sigil (`*`, `?`, `!`) make incompatible claims. */
+function refuseSigilUnderQualifier(qualifier, key, value) {
+  if (value === '*' || value === '?' || value === '!') {
+    throw new TaggedUrnError(
+      ErrorCodes.INVALID_CHARACTER,
+      `qualifier '${qualifier}' on key '${key}' cannot combine with sigil value '${value}': ` +
+      `use a real value or drop the qualifier`
+    );
+  }
+}
+
+/** The constraint of a value-less tag, given its qualifier. */
+function canonicalNoValue(qualifier) {
+  if (qualifier === null) return Constraint.present();
+  if (qualifier === '?') return Constraint.unconstrained();
+  if (qualifier === '!') return Constraint.absent();
+  throw new Error(`invalid qualifier ${qualifier}`);
+}
+
+/**
+ * The constraint a parsed (qualifier, value) pair writes. A quoted value is
+ * literal: exact, or optionalNot/presentNot under a qualifier. An unquoted
+ * `*`, `?` or `!` is a sigil; an unquoted value that begins with `?` or `!`
+ * is that qualifier (`x=?v` ≡ `x?=v`). A qualifier on an unquoted sigil, or a
+ * second qualifier, is refused.
+ */
+function canonicalizeValue(qualifier, quoted, key, value) {
+  if (value === '') {
+    throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${key}'`);
+  }
+  if (quoted) return qualified(qualifier, value);
+  if (qualifier === null) {
+    if (value === '*') return Constraint.present();
+    if (value === '?') return Constraint.unconstrained();
+    if (value === '!') return Constraint.absent();
+    if (value[0] === '?' || value[0] === '!') {
+      const rest = value.slice(1);
+      refuseSigilUnderQualifier(value[0], key, rest);
+      return qualified(value[0], rest);
+    }
+    return Constraint.exact(value);
+  }
+  if (value.length > 1 && (value[0] === '?' || value[0] === '!')) {
+    throw new TaggedUrnError(
+      ErrorCodes.INVALID_CHARACTER,
+      `qualifier '${qualifier}' on key '${key}' cannot combine with a second qualifier in value '${value}': ` +
+      `quote the value to make it literal`
+    );
+  }
+  refuseSigilUnderQualifier(qualifier, key, value);
+  return qualified(qualifier, value);
+}
 
 const TaggedUrnRelationKind = Object.freeze({
   EQUIVALENT: 'equivalent',
@@ -138,51 +273,6 @@ class TaggedUrnCoordinateDelta {
   }
 }
 
-// Classify a stored value. Returns { kind, raw } — raw is the inner
-// v for ?=v and !=v, the literal value for exact, and '' otherwise.
-function classifyForm(value) {
-  if (value === undefined) return { kind: Form.MISSING, raw: '' };
-  if (value === '?') return { kind: Form.NO_CONSTRAINT, raw: '' };
-  if (value === '*') return { kind: Form.MUST_HAVE_ANY, raw: '' };
-  if (value === '!') return { kind: Form.MUST_NOT_HAVE, raw: '' };
-  if (value.startsWith('?=')) return { kind: Form.ABSENT_OR_NOT_VALUE, raw: value.slice(2) };
-  if (value.startsWith('!=')) return { kind: Form.PRESENT_NOT_VALUE, raw: value.slice(2) };
-  return { kind: Form.EXACT, raw: value };
-}
-
-/**
- * Per-tag truth-table specificity score. Applied uniformly to any
- * stored tag value. Missing keys score 0; the caller filters them.
- *
- *   "?"          -> 0   (no constraint)
- *   starts "?="  -> 1   (absent or not v)
- *   "*"          -> 2   (must-have-any)
- *   starts "!="  -> 3   (present and not v)
- *   "!"          -> 5   (must-not-have)
- *   otherwise    -> 4   (exact value)
- */
-function scoreTagValue(value) {
-  if (value === '?') return 0;
-  if (value === '*') return 2;
-  if (value === '!') return 5;
-  if (value.startsWith('?=')) return 1;
-  if (value.startsWith('!=')) return 3;
-  return 4;
-}
-
-/**
- * The model's form of a stored tag value (undefined is a key the URN omits).
- */
-function constraintOf(value) {
-  if (value === undefined) return { kind: 'missing' };
-  if (value === '?') return { kind: 'unconstrained' };
-  if (value === '*') return { kind: 'present' };
-  if (value === '!') return { kind: 'absent' };
-  if (value.startsWith('?=')) return { kind: 'optionalNot', value: value.slice(2) };
-  if (value.startsWith('!=')) return { kind: 'presentNot', value: value.slice(2) };
-  return { kind: 'exact', value };
-}
-
 /**
  * Orders strings by code point, as Lean's `String <` does. JavaScript's own
  * comparison is by UTF-16 code unit, which disagrees past U+FFFF: a surrogate
@@ -200,24 +290,25 @@ function compareCodePoints(a, b) {
 }
 
 /**
- * Whether an instance value satisfies a pattern constraint at one key
- * (undefined for a key the URN omits). Decided by the model: every form has
- * one meaning — the set of states the key may be in — and the instance
- * satisfies the pattern when every state it allows, the pattern allows too
- * (`tagMatch_iff_allows` in ../formal).
+ * Whether an instance's constraint satisfies a pattern's at one key
+ * (`Constraint.missing()` for a key the URN omits, as `TaggedUrn.constraint`
+ * gives it). Decided by the model: every form has one meaning — the set of
+ * states the key may be in — and the instance satisfies the pattern when
+ * every state it allows, the pattern allows too (`tagMatch_iff_allows` in
+ * ../formal).
  */
 function valuesMatch(inst, patt) {
-  return model.valuesMatch(constraintOf(inst), constraintOf(patt));
+  return model.valuesMatch(inst, patt);
 }
 
-/** Whether two stored values allow a common state at one key. */
+/** Whether two constraints allow a common state at one key. */
 function valuesMeet(a, b) {
-  return model.valuesMeet(constraintOf(a), constraintOf(b));
+  return model.valuesMeet(a, b);
 }
 
 /** One key of a complete thing against a pattern: an omitted key is absent. */
 function valuesMatchClosed(inst, patt) {
-  return model.valuesMatchClosed(constraintOf(inst), constraintOf(patt));
+  return model.valuesMatchClosed(inst, patt);
 }
 
 /**
@@ -225,20 +316,21 @@ function valuesMatchClosed(inst, patt) {
  */
 class TaggedUrn {
   /**
-   * Create a new TaggedUrn
+   * Create a tagged URN from a prefix and its tags. The prefix and every key
+   * must be identifiers (an ASCII letter, then ASCII letters, digits and `-`)
+   * and are lowered; every constraint must be one a URN can write.
    * @param {string} prefix - The prefix for this URN
-   * @param {Object} tags - Initial tags (will not be re-normalized in constructor)
-   * @param {boolean} skipNormalization - If true, skip key normalization (internal use)
+   * @param {Object<string, {kind: string, value?: string}>} tags - Each key's constraint
    */
-  constructor(prefix, tags = {}, skipNormalization = false) {
-    this.prefix = prefix.toLowerCase();
+  constructor(prefix, tags = {}) {
+    this.prefix = identifier('prefix', prefix);
     this.tags = {};
-    if (skipNormalization) {
-      this.tags = { ...tags };
-    } else {
-      for (const [key, value] of Object.entries(tags)) {
-        this.tags[key.toLowerCase()] = value;
+    for (const [k, constraint] of Object.entries(tags)) {
+      const key = identifier('key', k);
+      if (Object.prototype.hasOwnProperty.call(this.tags, key)) {
+        throw new TaggedUrnError(ErrorCodes.DUPLICATE_KEY, `Duplicate tag key: ${key}`);
       }
+      this.tags[key] = checkedConstraint(key, constraint);
     }
     // The same URN on the proved model's side: its tags with the proof that
     // their keys are strictly increasing. Every semantic question is asked of
@@ -256,16 +348,16 @@ class TaggedUrn {
 
   /**
    * The tags as the model's `make` takes them: (key, constraint) pairs in
-   * code-point order, each constraint plain data (`{ kind, value? }`). Every
-   * program generated for JavaScript runs in a WebAssembly instance of its own
-   * and cannot take this URN's model value, so a program built on tagged-urn's
-   * model makes its own from these, with its own `make`.
+   * code-point order. Every program generated for JavaScript runs in a
+   * WebAssembly instance of its own and cannot take this URN's model value,
+   * so a program built on tagged-urn's model makes its own from these, with
+   * its own `make`.
    * @returns {Array<[string, {kind: string, value?: string}]>}
    */
   modelTags() {
     return Object.keys(this.tags)
       .sort(compareCodePoints)
-      .map((key) => [key, constraintOf(this.tags[key])]);
+      .map((key) => [key, this.tags[key]]);
   }
 
   /**
@@ -302,13 +394,13 @@ class TaggedUrn {
       throw new TaggedUrnError(ErrorCodes.EMPTY_PREFIX, 'Tagged URN prefix cannot be empty');
     }
 
-    const prefix = s.slice(0, colonPos).toLowerCase();
+    const prefix = identifier('prefix', s.slice(0, colonPos));
     const tagsPart = s.slice(colonPos + 1);
     const tags = {};
 
     // Handle empty tagged URN (prefix: with no tags or just semicolon)
     if (tagsPart === '' || tagsPart === ';') {
-      return new TaggedUrn(prefix, tags, true);
+      return new TaggedUrn(prefix, tags);
     }
 
     let state = ParseState.EXPECTING_KEY;
@@ -319,40 +411,11 @@ class TaggedUrn {
     const chars = [...tagsPart];
     let pos = 0;
 
-    const canonicalNoValue = (q) => {
-      if (q === null) return '*';
-      if (q === '?') return '?';
-      if (q === '!') return '!';
-      throw new Error(`invalid qualifier ${q}`);
-    };
-
-    const canonicalizeValue = (q, key, value) => {
-      if (q === null) return value;
-      if (value === '*' || value === '?' || value === '!') {
-        throw new TaggedUrnError(
-          ErrorCodes.INVALID_CHARACTER,
-          `qualifier '${q}' on key '${key}' cannot combine with sigil value '${value}': ` +
-          `use a real value or drop the qualifier`
-        );
-      }
-      return `${q}=${value}`;
-    };
-
-    const finishTag = () => {
-      if (currentKey === '') {
-        throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
-      }
-      if (currentValue === '') {
-        throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${currentKey}'`);
-      }
-      if (tags.hasOwnProperty(currentKey)) {
+    const finishTag = (constraint) => {
+      if (Object.prototype.hasOwnProperty.call(tags, currentKey)) {
         throw new TaggedUrnError(ErrorCodes.DUPLICATE_KEY, `Duplicate tag key: ${currentKey}`);
       }
-      if (/^\d+$/.test(currentKey)) {
-        throw new TaggedUrnError(ErrorCodes.NUMERIC_KEY, `Tag key cannot be purely numeric: ${currentKey}`);
-      }
-
-      tags[currentKey] = currentValue;
+      tags[currentKey] = constraint;
       currentKey = '';
       currentValue = '';
       qualifier = null;
@@ -372,7 +435,7 @@ class TaggedUrn {
           } else if (c === '!') {
             qualifier = '!';
             state = ParseState.AFTER_PREFIX_BANG;
-          } else if (isValidKeyChar(c)) {
+          } else if (isIdentifierStart(c)) {
             currentKey += c.toLowerCase();
             state = ParseState.IN_KEY;
           } else {
@@ -382,7 +445,7 @@ class TaggedUrn {
 
         case ParseState.AFTER_PREFIX_QUESTION:
         case ParseState.AFTER_PREFIX_BANG:
-          if (isValidKeyChar(c)) {
+          if (isIdentifierStart(c)) {
             currentKey += c.toLowerCase();
             state = ParseState.IN_KEY;
           } else {
@@ -395,9 +458,6 @@ class TaggedUrn {
 
         case ParseState.IN_KEY:
           if (c === '=') {
-            if (currentKey === '') {
-              throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
-            }
             state = ParseState.EXPECTING_VALUE;
           } else if (c === '?') {
             if (qualifier !== null) {
@@ -418,11 +478,7 @@ class TaggedUrn {
             qualifier = '!';
             state = ParseState.IN_KEY_AFTER_BANG;
           } else if (c === ';') {
-            if (currentKey === '') {
-              throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
-            }
-            currentValue = canonicalNoValue(qualifier);
-            finishTag();
+            finishTag(canonicalNoValue(qualifier));
             state = ParseState.EXPECTING_KEY;
           } else if (isValidKeyChar(c)) {
             currentKey += c.toLowerCase();
@@ -436,8 +492,7 @@ class TaggedUrn {
           if (c === '=') {
             state = ParseState.EXPECTING_VALUE;
           } else if (c === ';') {
-            currentValue = canonicalNoValue(qualifier);
-            finishTag();
+            finishTag(canonicalNoValue(qualifier));
             state = ParseState.EXPECTING_KEY;
           } else {
             throw new TaggedUrnError(
@@ -453,7 +508,7 @@ class TaggedUrn {
           } else if (c === ';') {
             throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${currentKey}'`);
           } else if (isValidUnquotedValueChar(c)) {
-            currentValue += c.toLowerCase();
+            currentValue += asciiLower(c);
             state = ParseState.IN_UNQUOTED_VALUE;
           } else {
             throw new TaggedUrnError(ErrorCodes.INVALID_CHARACTER, `invalid character '${c}' in value at position ${pos}`);
@@ -462,11 +517,10 @@ class TaggedUrn {
 
         case ParseState.IN_UNQUOTED_VALUE:
           if (c === ';') {
-            currentValue = canonicalizeValue(qualifier, currentKey, currentValue);
-            finishTag();
+            finishTag(canonicalizeValue(qualifier, false, currentKey, currentValue));
             state = ParseState.EXPECTING_KEY;
           } else if (isValidUnquotedValueChar(c)) {
-            currentValue += c.toLowerCase();
+            currentValue += asciiLower(c);
           } else {
             throw new TaggedUrnError(ErrorCodes.INVALID_CHARACTER, `invalid character '${c}' in unquoted value at position ${pos}`);
           }
@@ -493,8 +547,7 @@ class TaggedUrn {
 
         case ParseState.EXPECTING_SEMI_OR_END:
           if (c === ';') {
-            currentValue = canonicalizeValue(qualifier, currentKey, currentValue);
-            finishTag();
+            finishTag(canonicalizeValue(qualifier, true, currentKey, currentValue));
             state = ParseState.EXPECTING_KEY;
           } else {
             throw new TaggedUrnError(ErrorCodes.INVALID_CHARACTER, `expected ';' or end after quoted value, got '${c}' at position ${pos}`);
@@ -507,9 +560,10 @@ class TaggedUrn {
 
     switch (state) {
       case ParseState.IN_UNQUOTED_VALUE:
+        finishTag(canonicalizeValue(qualifier, false, currentKey, currentValue));
+        break;
       case ParseState.EXPECTING_SEMI_OR_END:
-        currentValue = canonicalizeValue(qualifier, currentKey, currentValue);
-        finishTag();
+        finishTag(canonicalizeValue(qualifier, true, currentKey, currentValue));
         break;
       case ParseState.EXPECTING_KEY:
         break;
@@ -520,22 +574,15 @@ class TaggedUrn {
       case ParseState.AFTER_PREFIX_BANG:
         throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `qualifier '${qualifier}' at end of input has no key`);
       case ParseState.IN_KEY:
-        if (currentKey === '') {
-          throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, 'empty key');
-        }
-        currentValue = canonicalNoValue(qualifier);
-        finishTag();
-        break;
       case ParseState.IN_KEY_AFTER_QUESTION:
       case ParseState.IN_KEY_AFTER_BANG:
-        currentValue = canonicalNoValue(qualifier);
-        finishTag();
+        finishTag(canonicalNoValue(qualifier));
         break;
       case ParseState.EXPECTING_VALUE:
         throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${currentKey}'`);
     }
 
-    return new TaggedUrn(prefix, tags, true);
+    return new TaggedUrn(prefix, tags);
   }
 
   /**
@@ -544,7 +591,7 @@ class TaggedUrn {
    * @returns {TaggedUrn} An empty TaggedUrn instance
    */
   static empty(prefix) {
-    return new TaggedUrn(prefix, {}, true);
+    return new TaggedUrn(prefix, {});
   }
 
   /**
@@ -579,104 +626,98 @@ class TaggedUrn {
   }
 
   /**
-   * Get the canonical string representation of this tagged URN
-   * Uses the stored prefix
-   * Tags are sorted alphabetically for consistent representation
-   * No trailing semicolon in canonical form
-   * Values are quoted only when necessary (smart quoting)
-   * Special value serialization:
-   * - * (must-have-any): serialized as value-less tag (just the key)
-   * - ? (unspecified): serialized as key=?
-   * - ! (must-not-have): serialized as key=!
+   * The canonical string representation: the prefix, `:`, and the tags in key
+   * order joined by `;`, with no trailing semicolon. Each constraint is
+   * written in its canonical form:
+   *
+   *   present        -> k
+   *   unconstrained  -> ?k
+   *   absent         -> !k
+   *   optionalNot v  -> k?=v
+   *   presentNot v   -> k!=v
+   *   exact v        -> k=v
+   *
+   * A value is quoted only when it must be to read back as itself: exact `*`
+   * prints `k="*"`.
    *
    * @returns {string} The canonical string representation
    */
   toString() {
-    if (Object.keys(this.tags).length === 0) {
-      return `${this.prefix}:`;
-    }
-
-    const sortedKeys = Object.keys(this.tags).sort();
-
-    // Build canonical serialization. Stored values map to:
-    //   "*"       -> "k"      (bare key, must-have-any)
-    //   "?"       -> "?k"     (prefix qualifier, no constraint)
-    //   "!"       -> "!k"     (prefix qualifier, must-not-have)
-    //   "?=v"     -> "k?=v"   (infix qualifier, absent or not v)
-    //   "!=v"     -> "k!=v"   (infix qualifier, present and not v)
-    //   exact "v" -> "k=v" / "k=\"v\"" (with quoting if needed)
-    const tagParts = sortedKeys.map(key => {
-      const value = this.tags[key];
-      if (value === '*') return key;
-      if (value === '?') return `?${key}`;
-      if (value === '!') return `!${key}`;
-      if (value.startsWith('?=')) {
-        const raw = value.slice(2);
-        return needsQuoting(raw) ? `${key}?=${quoteValue(raw)}` : `${key}?=${raw}`;
+    const tagParts = Object.keys(this.tags).sort(compareCodePoints).map((key) => {
+      const c = this.tags[key];
+      switch (c.kind) {
+        case 'present': return key;
+        case 'unconstrained': return `?${key}`;
+        case 'absent': return `!${key}`;
+        case 'optionalNot': return `${key}?=${writeValue(c.value)}`;
+        case 'presentNot': return `${key}!=${writeValue(c.value)}`;
+        case 'exact': return `${key}=${writeValue(c.value)}`;
+        default: throw new Error(`tagged-urn: stored constraint ${JSON.stringify(c)}`);
       }
-      if (value.startsWith('!=')) {
-        const raw = value.slice(2);
-        return needsQuoting(raw) ? `${key}!=${quoteValue(raw)}` : `${key}!=${raw}`;
-      }
-      return needsQuoting(value) ? `${key}=${quoteValue(value)}` : `${key}=${value}`;
     });
-
     return `${this.prefix}:${tagParts.join(';')}`;
   }
 
   /**
-   * Get the value of a specific tag
-   * Key is normalized to lowercase for lookup
+   * The constraint the URN writes for `key`, or undefined when it does not
+   * mention it. Key is normalized to lowercase for lookup.
    *
    * @param {string} key - The tag key
-   * @returns {string|undefined} The tag value or undefined if not found
+   * @returns {{kind: string, value?: string}|undefined}
    */
   getTag(key) {
     return this.tags[key.toLowerCase()];
   }
 
   /**
-   * Check if this URN has a specific tag with a specific value
-   * Key is normalized to lowercase; value comparison is case-sensitive
+   * The constraint the URN writes for `key`, `missing` when it does not
+   * mention it: the model's form of the key.
    *
    * @param {string} key - The tag key
-   * @param {string} value - The tag value to check
-   * @returns {boolean} Whether the tag exists with the specified value
+   * @returns {{kind: string, value?: string}}
+   */
+  constraint(key) {
+    const c = this.tags[key.toLowerCase()];
+    return c === undefined ? Constraint.missing() : c;
+  }
+
+  /**
+   * Whether this URN writes the exact value `value` for `key` (`key=value`).
+   * Key is normalized to lowercase; value comparison is case-sensitive.
+   *
+   * @param {string} key - The tag key
+   * @param {string} value - The exact value
+   * @returns {boolean}
    */
   hasTag(key, value) {
-    const tagValue = this.tags[key.toLowerCase()];
-    return tagValue !== undefined && tagValue === value;
+    return Constraint.equals(this.tags[key.toLowerCase()], Constraint.exact(value));
   }
 
   /**
-   * Check whether a marker tag (a tag whose value is "*") is present at
-   * the given key. Equivalent to hasTag(tagName, "*") but expresses
-   * authorial intent: this tag is present as a marker (a wildcard-valued
-   * tag that serializes as just the key), not as a key=value pair.
-   * Example: cap:constrained;... has marker tag "constrained".
+   * Whether `tagName` is present as a marker (`present`, written as just the
+   * key). Example: cap:constrained;... has marker tag "constrained".
    *
    * @param {string} tagName - The marker key
-   * @returns {boolean} Whether the tag exists with value "*"
+   * @returns {boolean}
    */
   hasMarkerTag(tagName) {
-    return this.tags[tagName.toLowerCase()] === '*';
+    const c = this.tags[tagName.toLowerCase()];
+    return c !== undefined && c.kind === 'present';
   }
 
   /**
-   * Create a new tagged URN with an added or updated tag
-   * Key is normalized to lowercase; value is preserved as-is
+   * A new tagged URN with an added or replaced tag. The key must be an
+   * identifier and is lowered; the constraint must be one a URN can write.
    *
    * @param {string} key - The tag key
-   * @param {string} value - The tag value
-   * @returns {TaggedUrn} A new TaggedUrn instance with the tag added/updated
+   * @param {{kind: string, value?: string}} constraint - The tag's constraint
+   * @returns {TaggedUrn}
    */
-  withTag(key, value) {
-    if (value === '' || value === undefined || value === null) {
-      throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${key}' (use '*' for wildcard)`);
-    }
+  withTag(key, constraint) {
+    const k = identifier('key', key);
     const newTags = { ...this.tags };
-    newTags[key.toLowerCase()] = value;
-    return new TaggedUrn(this.prefix, newTags, true);
+    newTags[k] = checkedConstraint(k, constraint);
+    return new TaggedUrn(this.prefix, newTags);
   }
 
   /**
@@ -689,7 +730,7 @@ class TaggedUrn {
   withoutTag(key) {
     const newTags = { ...this.tags };
     delete newTags[key.toLowerCase()];
-    return new TaggedUrn(this.prefix, newTags, true);
+    return new TaggedUrn(this.prefix, newTags);
   }
 
   /**
@@ -833,16 +874,16 @@ class TaggedUrn {
    * The bound of no URNs is the URN with no tags.
    *
    * Made by the model (`TaggedUrn.Exec.leastUpperBound`), whose theorems say
-   * every input conforms to the bound and the bound conforms to every such
-   * bound of them.
+   * every input conforms to the bound, the bound conforms to every such bound
+   * of them, and no tag of it is `missing`.
    *
-   * @param {string} prefix - The prefix every URN must have
+   * @param {string} prefix - The prefix every URN must have; an identifier
    * @param {TaggedUrn[]} urns - The URNs to bound
    * @returns {TaggedUrn} The bound
    * @throws {TaggedUrnError} PREFIX_MISMATCH if a URN has another prefix
    */
   static leastUpperBound(prefix, urns) {
-    const lower = prefix.toLowerCase();
+    const lower = identifier('prefix', prefix);
     const tags = model.leastUpperBound(lower, urns.map((u) => u.formal));
     if (tags === null) {
       const other = urns.find((u) => u.prefix !== lower);
@@ -875,12 +916,12 @@ class TaggedUrn {
    * Calculate specificity score for URN matching, as the model computes it:
    * the sum of per-tag truth-table scores. Per-tag ladder:
    *
-   *   "?"            -> 0   (no constraint)
-   *   starts "?="    -> 1   (absent or not v)
-   *   "*"            -> 2   (must-have-any)
-   *   starts "!="    -> 3   (present and not v)
-   *   exact value    -> 4   (exact match)
-   *   "!"            -> 5   (must-not-have)
+   *   unconstrained  -> 0   (no constraint)
+   *   optionalNot    -> 1   (absent or not v)
+   *   present        -> 2   (must-have-any)
+   *   presentNot     -> 3   (present and not v)
+   *   exact          -> 4   (exact match)
+   *   absent         -> 5   (must-not-have)
    *
    * @returns {number} The specificity score
    */
@@ -889,28 +930,18 @@ class TaggedUrn {
   }
 
   /**
-   * Get specificity as a tuple for tie-breaking, ordered from highest
-   * score to lowest:
-   *   [must_not_have, exact, present_not_value, must_have_any, absent_or_not_value]
-   * Compare tuples lexicographically when sum scores are equal.
+   * How many tags fall into each non-zero form, from the highest score to the
+   * lowest: [absent, exact, presentNot, present, optionalNot].
    * @returns {number[]}
    */
   specificityTuple() {
-    let mustNotHave = 0;
-    let exact = 0;
-    let presentNotValue = 0;
-    let mustHaveAny = 0;
-    let absentOrNotValue = 0;
-    for (const value of Object.values(this.tags)) {
-      const { kind } = classifyForm(value);
-      if (kind === Form.MUST_NOT_HAVE) mustNotHave++;
-      else if (kind === Form.EXACT) exact++;
-      else if (kind === Form.PRESENT_NOT_VALUE) presentNotValue++;
-      else if (kind === Form.MUST_HAVE_ANY) mustHaveAny++;
-      else if (kind === Form.ABSENT_OR_NOT_VALUE) absentOrNotValue++;
-      // NO_CONSTRAINT and MISSING contribute nothing
+    const order = ['absent', 'exact', 'presentNot', 'present', 'optionalNot'];
+    const counts = [0, 0, 0, 0, 0];
+    for (const c of Object.values(this.tags)) {
+      const i = order.indexOf(c.kind);
+      if (i >= 0) counts[i]++;
     }
-    return [mustNotHave, exact, presentNotValue, mustHaveAny, absentOrNotValue];
+    return counts;
   }
 
   /**
@@ -1018,7 +1049,7 @@ class TaggedUrn {
       const targetValue = Object.prototype.hasOwnProperty.call(this.tags, key)
         ? this.tags[key]
         : undefined;
-      if (baseValue === targetValue) {
+      if (baseValue === targetValue || Constraint.equals(baseValue, targetValue)) {
         continue;
       }
       if (baseValue !== undefined) {
@@ -1036,8 +1067,8 @@ class TaggedUrn {
    * Apply a coordinate-space delta to this tagged URN.
    *
    * Keys named in `removed` are deleted regardless of their current value,
-   * then keys named in `added` are inserted. Unrelated coordinates are
-   * preserved.
+   * then keys named in `added` are inserted, each checked as `withTag` checks.
+   * Unrelated coordinates are preserved.
    *
    * @param {TaggedUrnCoordinateDelta} delta
    * @returns {TaggedUrn}
@@ -1061,18 +1092,18 @@ class TaggedUrn {
     for (const [key, value] of Object.entries(delta.added)) {
       nextTags[key] = value;
     }
-    return new TaggedUrn(this.prefix, nextTags, true);
+    return new TaggedUrn(this.prefix, nextTags);
   }
 
   /**
-   * Create a new URN with a specific tag set to wildcard
+   * The same URN with `key`, where it has it, made a marker (`present`).
    *
-   * @param {string} key - The tag key to set to wildcard
-   * @returns {TaggedUrn} A new TaggedUrn instance with the tag set to wildcard
+   * @param {string} key - The tag key
+   * @returns {TaggedUrn}
    */
   withWildcardTag(key) {
-    if (this.tags.hasOwnProperty(key.toLowerCase())) {
-      return this.withTag(key, '*');
+    if (Object.prototype.hasOwnProperty.call(this.tags, key.toLowerCase())) {
+      return this.withTag(key, Constraint.present());
     }
     return this;
   }
@@ -1087,11 +1118,11 @@ class TaggedUrn {
     const newTags = {};
     for (const key of keys) {
       const normalizedKey = key.toLowerCase();
-      if (this.tags.hasOwnProperty(normalizedKey)) {
+      if (Object.prototype.hasOwnProperty.call(this.tags, normalizedKey)) {
         newTags[normalizedKey] = this.tags[normalizedKey];
       }
     }
-    return new TaggedUrn(this.prefix, newTags, true);
+    return new TaggedUrn(this.prefix, newTags);
   }
 
   /**
@@ -1116,7 +1147,7 @@ class TaggedUrn {
 
     const newTags = { ...this.tags };
     Object.assign(newTags, other.tags);
-    return new TaggedUrn(this.prefix, newTags, true);
+    return new TaggedUrn(this.prefix, newTags);
   }
 
   /**
@@ -1145,7 +1176,7 @@ class TaggedUrn {
       if (thisKeys[i] !== otherKeys[i]) {
         return false;
       }
-      if (this.tags[thisKeys[i]] !== other.tags[otherKeys[i]]) {
+      if (!Constraint.equals(this.tags[thisKeys[i]], other.tags[otherKeys[i]])) {
         return false;
       }
     }
@@ -1177,38 +1208,51 @@ class TaggedUrn {
  */
 class TaggedUrnBuilder {
   /**
-   * Create a new builder with a specified prefix (required)
+   * Create a new builder with a specified prefix (required), which must be an
+   * identifier and is lowered.
    * @param {string} prefix - The prefix to use
    */
   constructor(prefix) {
-    this._prefix = prefix.toLowerCase();
+    this._prefix = identifier('prefix', prefix);
     this.tags = {};
   }
 
   /**
-   * Add or update a tag
-   * Key is normalized to lowercase; value is preserved as-is
+   * Add a tag of any form. The key must be an identifier and is lowered; the
+   * constraint must be one a URN can write.
    *
    * @param {string} key - The tag key
-   * @param {string} value - The tag value
+   * @param {{kind: string, value?: string}} constraint - The tag's constraint
    * @returns {TaggedUrnBuilder} This builder instance for chaining
    */
-  tag(key, value) {
-    if (value === '' || value === undefined || value === null) {
-      throw new TaggedUrnError(ErrorCodes.EMPTY_TAG, `empty value for key '${key}' (use '*' for wildcard)`);
+  constraint(key, constraint) {
+    const k = identifier('key', key);
+    if (Object.prototype.hasOwnProperty.call(this.tags, k)) {
+      throw new TaggedUrnError(ErrorCodes.DUPLICATE_KEY, `Duplicate tag key: ${k}`);
     }
-    this.tags[key.toLowerCase()] = value;
+    this.tags[k] = checkedConstraint(k, constraint);
     return this;
   }
 
   /**
-   * Add a tag with wildcard value (*)
+   * Add the exact value `value` for `key` (`key=value`), taken literally:
+   * tag('x', '*') is the exact value `*`, not the marker.
+   *
+   * @param {string} key - The tag key
+   * @param {string} value - The exact value
+   * @returns {TaggedUrnBuilder} This builder instance for chaining
+   */
+  tag(key, value) {
+    return this.constraint(key, Constraint.exact(value));
+  }
+
+  /**
+   * Add `key` as a marker (`present`, written as just the key).
    * @param {string} key - The tag key
    * @returns {TaggedUrnBuilder} This builder for chaining
    */
   marker(key) {
-    this.tags[key.toLowerCase()] = '*';
-    return this;
+    return this.constraint(key, Constraint.present());
   }
 
   /**
@@ -1221,7 +1265,7 @@ class TaggedUrnBuilder {
     if (Object.keys(this.tags).length === 0) {
       throw new TaggedUrnError(ErrorCodes.INVALID_FORMAT, 'Tagged URN cannot be empty');
     }
-    return new TaggedUrn(this._prefix, this.tags, true);
+    return new TaggedUrn(this._prefix, this.tags);
   }
 
   /**
@@ -1230,7 +1274,7 @@ class TaggedUrnBuilder {
    * @returns {TaggedUrn} A new TaggedUrn instance
    */
   buildAllowEmpty() {
-    return new TaggedUrn(this._prefix, this.tags, true);
+    return new TaggedUrn(this._prefix, this.tags);
   }
 }
 
@@ -1316,7 +1360,7 @@ export {
   UrnMatcher,
   TaggedUrnError,
   ErrorCodes,
-  scoreTagValue,
+  Constraint,
   valuesMatch,
   valuesMeet,
   valuesMatchClosed
