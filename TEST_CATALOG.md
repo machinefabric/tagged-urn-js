@@ -2,18 +2,18 @@
 
 Generated from the test catalogue. Edit the tests, not this file.
 
-112 tests: 112 numbered, 0 unnumbered.
+114 tests: 114 numbered, 0 unnumbered.
 
 ## Numbered
 
 | Number | Repository | Language | Test | Location | Description |
 |---|---|---|---|---|---|
-| TEST1 | tagged-urn/tagged-urn-js | js | `test0001_JsOnly_op_tag_rename` | tagged-urn.test.js:1228 | JS-only: Test marker tags are authored without an `action` key |
-| TEST2 | tagged-urn/tagged-urn-js | js | `test0002_ConformsToStr` | tagged-urn.test.js:1245 | Test conformsToStr convenience method |
-| TEST3 | tagged-urn/tagged-urn-js | js | `test0003_AcceptsStr` | tagged-urn.test.js:1254 | Test acceptsStr convenience method |
-| TEST4 | tagged-urn/tagged-urn-js | js | `test0004_Canonical` | tagged-urn.test.js:1263 | Test canonical static method |
-| TEST5 | tagged-urn/tagged-urn-js | js | `test0005_CanonicalOption` | tagged-urn.test.js:1272 | Test canonicalOption static method |
-| TEST392 | tagged-urn/tagged-urn-js | js | `test392_least_upper_bound` | tagged-urn.test.js:1346 | TEST392: the bound of several URNs: the values they share, a key every one sets to differing values as "some value", the coarser of two comparable URNs, nothing for none, and another prefix refused |
+| TEST1 | tagged-urn/tagged-urn-js | js | `test0001_JsOnly_op_tag_rename` | tagged-urn.test.js:1255 | JS-only: Test marker tags are authored without an `action` key |
+| TEST2 | tagged-urn/tagged-urn-js | js | `test0002_ConformsToStr` | tagged-urn.test.js:1272 | Test conformsToStr convenience method |
+| TEST3 | tagged-urn/tagged-urn-js | js | `test0003_AcceptsStr` | tagged-urn.test.js:1281 | Test acceptsStr convenience method |
+| TEST4 | tagged-urn/tagged-urn-js | js | `test0004_Canonical` | tagged-urn.test.js:1290 | Test canonical static method |
+| TEST5 | tagged-urn/tagged-urn-js | js | `test0005_CanonicalOption` | tagged-urn.test.js:1299 | Test canonicalOption static method |
+| TEST392 | tagged-urn/tagged-urn-js | js | `test392_least_upper_bound` | tagged-urn.test.js:1373 | TEST392: the bound of several URNs: the values they share, a key every one sets to differing values as "some value", the coarser of two comparable URNs, nothing for none, and another prefix refused |
 | TEST501 | tagged-urn/tagged-urn-js | js | `test501_tagged_urn_creation` | tagged-urn.test.js:74 | TEST501: Verify basic URN creation from string with multiple tags |
 | TEST502 | tagged-urn/tagged-urn-js | js | `test502_custom_prefix` | tagged-urn.test.js:83 | TEST502: Verify custom prefixes work and tags are sorted alphabetically |
 | TEST503 | tagged-urn/tagged-urn-js | js | `test503_prefix_case_insensitive` | tagged-urn.test.js:91 | TEST503: Verify prefix is case-insensitive (CAP, cap, Cap all equal) |
@@ -91,33 +91,35 @@ Generated from the test catalogue. Edit the tests, not this file.
 | TEST575 | tagged-urn/tagged-urn-js | js | `test575_serialization_round_trip_special_values` | tagged-urn.test.js:1150 | TEST575: All special values round-trip correctly |
 | TEST576 | tagged-urn/tagged-urn-js | js | `test576_compatibility_with_special_values` | tagged-urn.test.js:1167 | TEST576: Bidirectional accepts with special values |
 | TEST577 | tagged-urn/tagged-urn-js | js | `test577_specificity_with_special_values` | tagged-urn.test.js:1200 | TEST577: Verify graded specificity with the six-form ladder. ?x=0, x?=v=1, x=*=2, x!=v=3, x=v=4, !x=5 |
-| TEST578 | tagged-urn/tagged-urn-js | js | `test578_equivalent_identical_tags` | tagged-urn.test.js:1369 | TEST578: Equivalent URNs with identical tag sets |
-| TEST579 | tagged-urn/tagged-urn-js | js | `test579_not_equivalent_when_one_more_specific` | tagged-urn.test.js:1377 | TEST579: Non-equivalent URNs where one is more specific |
-| TEST580 | tagged-urn/tagged-urn-js | js | `test580_comparable_specialization_chain` | tagged-urn.test.js:1385 | TEST580: Comparable URNs on the same specialization chain |
-| TEST581 | tagged-urn/tagged-urn-js | js | `test581_incomparable_different_branches` | tagged-urn.test.js:1393 | TEST581: Incomparable URNs in different branches of the lattice |
-| TEST582 | tagged-urn/tagged-urn-js | js | `test582_equivalent_implies_comparable` | tagged-urn.test.js:1401 | TEST582: Equivalent implies comparable but not vice versa |
-| TEST583 | tagged-urn/tagged-urn-js | js | `test583_prefix_mismatch_errors` | tagged-urn.test.js:1414 | TEST583: Prefix mismatch returns error for both relations |
-| TEST584 | tagged-urn/tagged-urn-js | js | `test584_empty_tags_comparable_to_all` | tagged-urn.test.js:1422 | TEST584: Empty tag set is comparable to everything with same prefix |
-| TEST585 | tagged-urn/tagged-urn-js | js | `test585_string_variants` | tagged-urn.test.js:1431 | TEST585: String variants of isEquivalent and isComparable |
-| TEST586 | tagged-urn/tagged-urn-js | js | `test586_special_values` | tagged-urn.test.js:1440 | TEST586: Special values (*, !, ?) with isEquivalent and isComparable |
-| TEST587 | tagged-urn/tagged-urn-js | js | `test587_builder_fluent_api` | tagged-urn.test.js:1463 | TEST587: Builder fluent API for tag manipulation |
-| TEST588 | tagged-urn/tagged-urn-js | js | `test588_builder_custom_tags` | tagged-urn.test.js:1477 | TEST588: Builder with custom tags |
-| TEST589 | tagged-urn/tagged-urn-js | js | `test589_builder_tag_overrides` | tagged-urn.test.js:1489 | TEST589: Builder tag overrides (last value wins) |
-| TEST590 | tagged-urn/tagged-urn-js | js | `test590_builder_empty_build` | tagged-urn.test.js:1499 | TEST590: Builder empty build returns error (tags required) |
-| TEST591 | tagged-urn/tagged-urn-js | js | `test591_builder_single_tag` | tagged-urn.test.js:1504 | TEST591: Builder with single tag |
-| TEST592 | tagged-urn/tagged-urn-js | js | `test592_builder_complex` | tagged-urn.test.js:1512 | TEST592: Builder with complex multi-tag URN |
-| TEST593 | tagged-urn/tagged-urn-js | js | `test593_builder_wildcards` | tagged-urn.test.js:1536 | TEST593: Builder with wildcards |
-| TEST594 | tagged-urn/tagged-urn-js | js | `test594_builder_custom_prefix` | tagged-urn.test.js:1550 | TEST594: Builder with custom prefix |
-| TEST595 | tagged-urn/tagged-urn-js | js | `test595_builder_matching_with_built_urn` | tagged-urn.test.js:1557 | TEST595: Builder matching with built URN |
-| TEST596 | tagged-urn/tagged-urn-js | js | `test596_empty_delta_preserves_refinement` | tagged-urn.test.js:1579 | TEST596: Empty delta preserves a more specific concrete instance. |
-| TEST597 | tagged-urn/tagged-urn-js | js | `test597_incomparable_replacement` | tagged-urn.test.js:1590 | TEST597: Incomparable replacement rewrites only declared coordinates. |
-| TEST598 | tagged-urn/tagged-urn-js | js | `test598_comparable_removal` | tagged-urn.test.js:1600 | TEST598: Comparable removal drops only the declared key. |
-| TEST599 | tagged-urn/tagged-urn-js | js | `test599_every_row_of_the_models_table` | tagged-urn.test.js:1315 | TEST599: every row of the proved model's table. The rules are proved in ../formal (Lean); this ties them to this mirror: every row of ../formal/conformance.json (written by the model, `lake exe conformance`) is parsed by this parser and must get the model's verdict, and every set of URNs in it the model's bound (leastUpperBound). The same table runs in every mirror. |
-| TEST600 | tagged-urn/tagged-urn-js | js | `test600_every_model_function_carries_a_proved_claim` | tagged-urn.test.js:1291 | TEST600: every function of the proved model this mirror calls carries a proved claim. The model's package carries what is proved of each function it exports (its assurance document, generated from ../formal): each one decides, equals or keeps what its claim says, and none rests on an assumption about the host — the model needs none. |
-| TEST6752 | tagged-urn/tagged-urn-js | js | `test6752_qualifier_value_alias` | tagged-urn.test.js:1618 | TEST6752: An unquoted value that begins with ? or ! is that qualifier (x=?v is x?=v, x=!v is x!=v); a quoted one is literal |
-| TEST6753 | tagged-urn/tagged-urn-js | js | `test6753_prefix_and_key_are_identifiers` | tagged-urn.test.js:1642 | TEST6753: The prefix and every key are identifiers (an ASCII letter, then ASCII letters, digits and -), lowered, in parsing and in every constructor |
-| TEST6754 | tagged-urn/tagged-urn-js | js | `test6754_every_value_reads_back` | tagged-urn.test.js:1672 | TEST6754: Every value a URN holds prints so that it reads back as itself |
-| TEST6755 | tagged-urn/tagged-urn-js | js | `test6755_unquoted_value_takes_any_non_separator` | tagged-urn.test.js:1687 | TEST6755: An unquoted value takes any character but ; = " \ and whitespace |
-| TEST6756 | tagged-urn/tagged-urn-js | js | `test6756_quoted_value_is_literal` | tagged-urn.test.js:1704 | TEST6756: A quoted value is the literal value: a quoted *, ? or ! is never a sigil, and a quoted ?=v is never a qualifier |
-| TEST7241 | tagged-urn/tagged-urn-js | js | `test7241_urns_are_ordered_by_their_parts` | tagged-urn.test.js:1730 | TEST7241: URNs are ordered by their parts, never their text: the prefix, then each tag in key order by key, then by its constraint's form (unconstrained, optionalNot, present, presentNot, exact, absent), then by its value |
+| TEST578 | tagged-urn/tagged-urn-js | js | `test578_equivalent_identical_tags` | tagged-urn.test.js:1396 | TEST578: Equivalent URNs with identical tag sets |
+| TEST579 | tagged-urn/tagged-urn-js | js | `test579_not_equivalent_when_one_more_specific` | tagged-urn.test.js:1404 | TEST579: Non-equivalent URNs where one is more specific |
+| TEST580 | tagged-urn/tagged-urn-js | js | `test580_comparable_specialization_chain` | tagged-urn.test.js:1412 | TEST580: Comparable URNs on the same specialization chain |
+| TEST581 | tagged-urn/tagged-urn-js | js | `test581_incomparable_different_branches` | tagged-urn.test.js:1420 | TEST581: Incomparable URNs in different branches of the lattice |
+| TEST582 | tagged-urn/tagged-urn-js | js | `test582_equivalent_implies_comparable` | tagged-urn.test.js:1428 | TEST582: Equivalent implies comparable but not vice versa |
+| TEST583 | tagged-urn/tagged-urn-js | js | `test583_prefix_mismatch_errors` | tagged-urn.test.js:1441 | TEST583: Prefix mismatch returns error for both relations |
+| TEST584 | tagged-urn/tagged-urn-js | js | `test584_empty_tags_comparable_to_all` | tagged-urn.test.js:1449 | TEST584: Empty tag set is comparable to everything with same prefix |
+| TEST585 | tagged-urn/tagged-urn-js | js | `test585_string_variants` | tagged-urn.test.js:1458 | TEST585: String variants of isEquivalent and isComparable |
+| TEST586 | tagged-urn/tagged-urn-js | js | `test586_special_values` | tagged-urn.test.js:1467 | TEST586: Special values (*, !, ?) with isEquivalent and isComparable |
+| TEST587 | tagged-urn/tagged-urn-js | js | `test587_builder_fluent_api` | tagged-urn.test.js:1490 | TEST587: Builder fluent API for tag manipulation |
+| TEST588 | tagged-urn/tagged-urn-js | js | `test588_builder_custom_tags` | tagged-urn.test.js:1504 | TEST588: Builder with custom tags |
+| TEST589 | tagged-urn/tagged-urn-js | js | `test589_builder_tag_overrides` | tagged-urn.test.js:1516 | TEST589: Builder tag overrides (last value wins) |
+| TEST590 | tagged-urn/tagged-urn-js | js | `test590_builder_empty_build` | tagged-urn.test.js:1526 | TEST590: Builder empty build returns error (tags required) |
+| TEST591 | tagged-urn/tagged-urn-js | js | `test591_builder_single_tag` | tagged-urn.test.js:1531 | TEST591: Builder with single tag |
+| TEST592 | tagged-urn/tagged-urn-js | js | `test592_builder_complex` | tagged-urn.test.js:1539 | TEST592: Builder with complex multi-tag URN |
+| TEST593 | tagged-urn/tagged-urn-js | js | `test593_builder_wildcards` | tagged-urn.test.js:1563 | TEST593: Builder with wildcards |
+| TEST594 | tagged-urn/tagged-urn-js | js | `test594_builder_custom_prefix` | tagged-urn.test.js:1577 | TEST594: Builder with custom prefix |
+| TEST595 | tagged-urn/tagged-urn-js | js | `test595_builder_matching_with_built_urn` | tagged-urn.test.js:1584 | TEST595: Builder matching with built URN |
+| TEST596 | tagged-urn/tagged-urn-js | js | `test596_empty_delta_preserves_refinement` | tagged-urn.test.js:1606 | TEST596: Empty delta preserves a more specific concrete instance. |
+| TEST597 | tagged-urn/tagged-urn-js | js | `test597_incomparable_replacement` | tagged-urn.test.js:1617 | TEST597: Incomparable replacement rewrites only declared coordinates. |
+| TEST598 | tagged-urn/tagged-urn-js | js | `test598_comparable_removal` | tagged-urn.test.js:1627 | TEST598: Comparable removal drops only the declared key. |
+| TEST599 | tagged-urn/tagged-urn-js | js | `test599_every_row_of_the_models_table` | tagged-urn.test.js:1342 | TEST599: every row of the proved model's table. The rules are proved in ../formal (Lean); this ties them to this mirror: every row of ../formal/conformance.json (written by the model, `lake exe conformance`) is parsed by this parser and must get the model's verdict, and every set of URNs in it the model's bound (leastUpperBound). The same table runs in every mirror. |
+| TEST600 | tagged-urn/tagged-urn-js | js | `test600_every_model_function_carries_a_proved_claim` | tagged-urn.test.js:1318 | TEST600: every function of the proved model this mirror calls carries a proved claim. The model's package carries what is proved of each function it exports (its assurance document, generated from ../formal): each one decides, equals or keeps what its claim says, and none rests on an assumption about the host — the model needs none. |
+| TEST6752 | tagged-urn/tagged-urn-js | js | `test6752_qualifier_value_alias` | tagged-urn.test.js:1645 | TEST6752: An unquoted value that begins with ? or ! is that qualifier (x=?v is x?=v, x=!v is x!=v); a quoted one is literal |
+| TEST6753 | tagged-urn/tagged-urn-js | js | `test6753_prefix_and_key_are_identifiers` | tagged-urn.test.js:1669 | TEST6753: The prefix and every key are identifiers (an ASCII letter, then ASCII letters, digits and -), lowered, in parsing and in every constructor |
+| TEST6754 | tagged-urn/tagged-urn-js | js | `test6754_every_value_reads_back` | tagged-urn.test.js:1699 | TEST6754: Every value a URN holds prints so that it reads back as itself |
+| TEST6755 | tagged-urn/tagged-urn-js | js | `test6755_unquoted_value_takes_any_non_separator` | tagged-urn.test.js:1714 | TEST6755: An unquoted value takes any character but ; = " \ and whitespace |
+| TEST6756 | tagged-urn/tagged-urn-js | js | `test6756_quoted_value_is_literal` | tagged-urn.test.js:1731 | TEST6756: A quoted value is the literal value: a quoted *, ? or ! is never a sigil, and a quoted ?=v is never a qualifier |
+| TEST7210 | tagged-urn/tagged-urn-js | js | `test7210_admits_absence_by_form` | tagged-urn.test.js:1237 | TEST7210: A written tag lets its key be absent exactly when it is !k, ?k or k?=v; a key the URN does not mention says nothing of it, so it allows absence too. |
+| TEST7223 | tagged-urn/tagged-urn-js | js | `test7223_urn_read_back_from_its_handle` | tagged-urn.test.js:1225 | TEST7223: A URN read back from its model handle is the URN: its prefix and every tag, each form and a quoted value included. |
+| TEST7241 | tagged-urn/tagged-urn-js | js | `test7241_urns_are_ordered_by_their_parts` | tagged-urn.test.js:1757 | TEST7241: URNs are ordered by their parts, never their text: the prefix, then each tag in key order by key, then by its constraint's form (unconstrained, optionalNot, present, presentNot, exact, absent), then by its value |
 

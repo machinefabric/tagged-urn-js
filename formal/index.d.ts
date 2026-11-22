@@ -39,6 +39,8 @@ export class TaggedUrnFormal {
   meets(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.meetsClosed : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
   meetsClosed(a: Wf, b: Wf): boolean;
+  /** Lean's TaggedUrn.Exec.parts : TaggedUrn.Exec.Wf → String × List (String × TaggedUrn.Constraint) */
+  parts(w_: Wf): [string, Array<[string, Constraint]>];
   /** Lean's TaggedUrn.Exec.refines : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
   refines(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.refinesBothClosed : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
