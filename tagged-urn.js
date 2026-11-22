@@ -365,6 +365,20 @@ class TaggedUrn {
   }
 
   /**
+   * The URN one of this model's URN values stands for, read back with its
+   * `parts` and checked as the constructor checks every URN. A program
+   * generated from a model that builds on this one reads its own values back
+   * the same way, with its own `parts`.
+   *
+   * @param {*} formal - A URN value of this model
+   * @returns {TaggedUrn}
+   */
+  static fromFormal(formal) {
+    const [prefix, tags] = model.parts(formal);
+    return new TaggedUrn(prefix, Object.fromEntries(tags));
+  }
+
+  /**
    * The tags as the model's `make` takes them: (key, constraint) pairs in
    * code-point order. Every program generated for JavaScript runs in a
    * WebAssembly instance of its own and cannot take this URN's model value,

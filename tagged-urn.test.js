@@ -1220,6 +1220,18 @@ function test577_specificity_with_special_values() {
   assertDeepEqual(mixed.specificityTuple(), [1, 1, 0, 1, 0], 'mixed tuple');
 }
 
+// TEST7223: A URN read back from its model handle is the URN: its prefix and every
+// tag, each form and a quoted value included.
+function test7223_urn_read_back_from_its_handle() {
+  for (const text of ['media:!a;?b;c?=v;d;e=v;f!=v;g="x y"', 'cap:', 'media:pdf']) {
+    const urn = TaggedUrn.fromString(text);
+    const back = TaggedUrn.fromFormal(urn.formal);
+    assertEqual(back.getPrefix(), urn.getPrefix(), `prefix of ${text}`);
+    assertDeepEqual(back.tags, urn.tags, `tags of ${text}`);
+    assert(back.equals(urn), `${text} reads back as itself`);
+  }
+}
+
 // TEST7210: A written tag lets its key be absent exactly when it is !k, ?k or k?=v;
 // a key the URN does not mention says nothing of it, so it allows absence too.
 function test7210_admits_absence_by_form() {
@@ -1894,6 +1906,7 @@ function runTests() {
     ['TEST6756', test6756_quoted_value_is_literal],
     ['TEST7241', test7241_urns_are_ordered_by_their_parts],
     ['TEST7210', test7210_admits_absence_by_form],
+    ['TEST7223', test7223_urn_read_back_from_its_handle],
     // JS-only tests
     ['JS-ONLY: op tag rename', test0001_JsOnly_op_tag_rename],
     // Convenience method tests
