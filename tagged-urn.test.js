@@ -1232,6 +1232,80 @@ function test7223_urn_read_back_from_its_handle() {
   }
 }
 
+// TEST7224: Each set form parses to the set it writes and prints canonically — values once,
+// in increasing order, `!` last — reading back as itself; the qualifier aliases write the same sets.
+function test7224_set_forms_parse_and_print() {
+  const cases = [
+    ['t:x=b|a', Constraint.oneOf(['a', 'b'], false), 't:x=a|b'],
+    ['t:x!=b|a', Constraint.noneOf(['a', 'b'], false), 't:x!=a|b'],
+    ['t:x?=b|a', Constraint.noneOf(['a', 'b'], true), 't:x?=a|b'],
+    ['t:x=b|!|a', Constraint.oneOf(['a', 'b'], true), 't:x=a|b|!'],
+    ['t:x=a|!', Constraint.oneOf(['a'], true), 't:x=a|!'],
+    ['t:x="a|b"|c', Constraint.oneOf(['a|b', 'c'], false), 't:x="a|b"|c'],
+    ['t:!x=a|b', Constraint.noneOf(['a', 'b'], false), 't:x!=a|b'],
+    ['t:?x=a|b', Constraint.noneOf(['a', 'b'], true), 't:x?=a|b'],
+  ];
+  for (const [text, constraint, printed] of cases) {
+    const urn = TaggedUrn.fromString(text);
+    assertConstraint(urn.getTag('x'), constraint, text);
+    assertEqual(urn.toString(), printed, text);
+    assert(TaggedUrn.fromString(printed).equals(urn), `${printed} reads back as ${text}`);
+  }
+  // A set is the model's own value: whether the key may be absent, and its values in order.
+  assertDeepEqual(
+    TaggedUrn.fromString('t:x=b|!|a').getTag('x'),
+    { kind: 'written', absent: true, values: { kind: 'oneOf', vs: ['a', 'b'] } },
+    'x=b|!|a as the model writes it'
+  );
+  // One value is the single form it always was.
+  assertConstraint(TaggedUrn.fromString('t:x=a').getTag('x'), Constraint.exact('a'), 'x=a is exact a');
+}
+
+// TEST7225: A set of values refuses a value given twice, an empty member, a bare sigil or
+// qualifier among its values, and `!` under a qualifier; a literal `|` is quoted.
+function test7225_set_forms_refused() {
+  for (const text of ['t:x=a|a', 't:x=a|!|!', 't:x!=a|a']) {
+    assertThrows(() => TaggedUrn.fromString(text), ErrorCodes.DUPLICATE_VALUE, `${text} must be refused`);
+  }
+  for (const text of ['t:x=a|*', 't:x=a|?', 't:x=?a|b', 't:x=a|!b', 't:x!=a|!', 't:x?=a|!']) {
+    assertThrows(() => TaggedUrn.fromString(text), ErrorCodes.INVALID_CHARACTER, `${text} must be refused`);
+  }
+  for (const text of ['t:x=a|', 't:x=a||b', 't:x=|a', 't:x=!|!']) {
+    assertThrowsAny(() => TaggedUrn.fromString(text), `${text} must be refused`);
+  }
+  const quoted = TaggedUrn.fromString('t:x="a|b"');
+  assertConstraint(quoted.getTag('x'), Constraint.exact('a|b'), 'quoted a|b is exact');
+  assertEqual(quoted.toString(), 't:x="a|b"', 'exact a|b prints quoted');
+}
+
+// TEST7226: The bound of several URNs is exact per key: png and jpeg are bound by
+// ext=jpeg|png, a value and its absence by ext=v|!, and a value and any value by ext.
+function test7226_bound_is_exact_per_key() {
+  const bound = (...urns) => TaggedUrn.leastUpperBound('media', urns.map((u) => TaggedUrn.fromString(u))).toString();
+  assertEqual(bound('media:ext=png', 'media:ext=jpeg'), 'media:ext=jpeg|png', 'png and jpeg');
+  assertEqual(bound('media:ext=png', 'media:!ext'), 'media:ext=png|!', 'png and no ext');
+  assertEqual(bound('media:ext=png', 'media:ext'), 'media:ext', 'png and any ext');
+  assertEqual(bound('media:ext=a|b', 'media:ext=b|c'), 'media:ext=a|b|c', 'two sets');
+  assertEqual(bound('media:ext!=a', 'media:ext=a'), 'media:ext', 'not a and a');
+}
+
+// TEST7227: A set scores by what it allows — two or more values 3, absence and some
+// values 1 — and narrowing never lowers a score, though two on one chain can tie.
+function test7227_set_scores() {
+  const score = (s) => TaggedUrn.fromString(s).specificity();
+  assertEqual(score('t:x=a|b'), 3, 'x=a|b');
+  assertEqual(score('t:x!=a|b'), 3, 'x!=a|b');
+  assertEqual(score('t:x?=a|b'), 1, 'x?=a|b');
+  assertEqual(score('t:x=a|!'), 1, 'x=a|!');
+  assertEqual(score('t:x=a|b|c'), 3, 'x=a|b|c');
+  assert(score('t:x=a|b') >= score('t:x'), 'x=a|b scores no lower than x');
+  assertDeepEqual(
+    TaggedUrn.fromString('t:x=a|b;y=a|!;z').specificityTuple(),
+    [0, 0, 1, 1, 1],
+    'x=a|b;y=a|!;z tuple'
+  );
+}
+
 // TEST7210: A written tag lets its key be absent exactly when it is !k, ?k or k?=v;
 // a key the URN does not mention says nothing of it, so it allows absence too.
 function test7210_admits_absence_by_form() {
@@ -1369,12 +1443,12 @@ function test599_every_row_of_the_models_table() {
   assert(wrong.length === 0, `${wrong.length} answer(s) differ from the model, e.g. ${wrong.slice(0, 8).join('; ')}`);
 }
 
-// TEST392: the bound of several URNs: the values they share, a key every one sets to differing values as "some value", the coarser of two comparable URNs, nothing for none, and another prefix refused
+// TEST392: the bound of several URNs: the values they share, a key every one sets to differing values as the set of those values, the coarser of two comparable URNs, nothing for none, and another prefix refused
 function test392_least_upper_bound() {
   const bound = (...urns) => TaggedUrn.leastUpperBound('media', urns.map((u) => TaggedUrn.fromString(u)));
   const is = (urn, expected) => assert(urn.equals(TaggedUrn.fromString(expected)), `${urn.toString()} should be ${expected}`);
 
-  is(bound('media:ext=png;image', 'media:ext=jpeg;image'), 'media:ext;image');
+  is(bound('media:ext=png;image', 'media:ext=jpeg;image'), 'media:ext=jpeg|png;image');
   // One input already holds the other: the bound is that input, not the wider `ext`.
   is(bound('media:ext=png', 'media:ext!=pdf'), 'media:ext!=pdf');
   // A key one input omits says nothing there, so the bound says nothing either.
@@ -1710,13 +1784,19 @@ function test6754_every_value_reads_back() {
   }
 }
 
-// TEST6755: An unquoted value takes any character but ; = " \ and whitespace
+// TEST6755: An unquoted value takes any character but ; = | " \ and whitespace
 function test6755_unquoted_value_takes_any_non_separator() {
   const urn = TaggedUrn.fromString('t:k=a,b(c)');
   assertConstraint(urn.getTag('k'), Constraint.exact('a,b(c)'), 'commas and parentheses stand bare');
 
-  const symbols = TaggedUrn.fromString("t:k=x@y#z+%&~'[]{}<>^$|");
-  assertConstraint(symbols.getTag('k'), Constraint.exact("x@y#z+%&~'[]{}<>^$|"), 'symbols stand bare');
+  const symbols = TaggedUrn.fromString("t:k=x@y#z+%&~'[]{}<>^$");
+  assertConstraint(symbols.getTag('k'), Constraint.exact("x@y#z+%&~'[]{}<>^$"), 'symbols stand bare');
+  // `|` separates the values of a set.
+  assertConstraint(
+    TaggedUrn.fromString('t:k=a|b').getTag('k'),
+    Constraint.oneOf(['a', 'b'], false),
+    '| separates the values of a set'
+  );
 
   assertConstraint(TaggedUrn.fromString('t:k=A,B').getTag('k'), Constraint.exact('a,b'), 'bare values are lowered');
 
@@ -1907,6 +1987,11 @@ function runTests() {
     ['TEST7241', test7241_urns_are_ordered_by_their_parts],
     ['TEST7210', test7210_admits_absence_by_form],
     ['TEST7223', test7223_urn_read_back_from_its_handle],
+    // Sets of values (TEST7224-TEST7227)
+    ['TEST7224', test7224_set_forms_parse_and_print],
+    ['TEST7225', test7225_set_forms_refused],
+    ['TEST7226', test7226_bound_is_exact_per_key],
+    ['TEST7227', test7227_set_scores],
     // JS-only tests
     ['JS-ONLY: op tag rename', test0001_JsOnly_op_tag_rename],
     // Convenience method tests

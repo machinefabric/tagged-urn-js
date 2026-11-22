@@ -37,26 +37,10 @@ export function constraintType() {
         case "missing":
           w.u32(0);
           return;
-        case "unconstrained":
+        case "written":
           w.u32(1);
-          return;
-        case "optionalNot":
-          w.u32(2);
-          L.STRING.encode(w, v.value);
-          return;
-        case "present":
-          w.u32(3);
-          return;
-        case "presentNot":
-          w.u32(4);
-          L.STRING.encode(w, v.value);
-          return;
-        case "exact":
-          w.u32(5);
-          L.STRING.encode(w, v.value);
-          return;
-        case "absent":
-          w.u32(6);
+          L.BOOL.encode(w, v.absent);
+          valuesType().encode(w, v.values);
           return;
         default:
           throw new L.MalformedError(`${String(v.kind)} is not a constructor of TaggedUrn.Constraint`);
@@ -66,13 +50,38 @@ export function constraintType() {
       const c = r.u32();
       switch (c) {
         case 0: return ({ kind: "missing" });
-        case 1: return ({ kind: "unconstrained" });
-        case 2: return ({ kind: "optionalNot", value: L.STRING.decode(r) });
-        case 3: return ({ kind: "present" });
-        case 4: return ({ kind: "presentNot", value: L.STRING.decode(r) });
-        case 5: return ({ kind: "exact", value: L.STRING.decode(r) });
-        case 6: return ({ kind: "absent" });
+        case 1: return ({ kind: "written", absent: L.BOOL.decode(r), values: valuesType().decode(r) });
         default: throw new L.MalformedError(`constructor index ${c} of TaggedUrn.Constraint`);
+      }
+    },
+  );
+}
+
+/** Describes TaggedUrn.Values for polymorphic functions. */
+export function valuesType() {
+  return new L.Type(
+    L.inductiveExpr(2),
+    (w, v) => {
+      if (typeof v !== "object" || v === null) throw new L.MalformedError("not a TaggedUrn.Values");
+      switch (v.kind) {
+        case "oneOf":
+          w.u32(0);
+          L.list(L.STRING).encode(w, v.vs);
+          return;
+        case "noneOf":
+          w.u32(1);
+          L.list(L.STRING).encode(w, v.vs);
+          return;
+        default:
+          throw new L.MalformedError(`${String(v.kind)} is not a constructor of TaggedUrn.Values`);
+      }
+    },
+    (r) => {
+      const c = r.u32();
+      switch (c) {
+        case 0: return ({ kind: "oneOf", vs: L.list(L.STRING).decode(r) });
+        case 1: return ({ kind: "noneOf", vs: L.list(L.STRING).decode(r) });
+        default: throw new L.MalformedError(`constructor index ${c} of TaggedUrn.Values`);
       }
     },
   );
@@ -99,19 +108,19 @@ export const ASSURANCE = L.parseAssurance({
       "name": "TaggedUrn.Constraint.allows",
       "kind": "lungo.relation",
       "statement": "TaggedUrn.Constraint → TaggedUrn.KeyState → Prop",
-      "definition": "fun x x_1 =>\n  match x, x_1 with\n  | TaggedUrn.Constraint.missing, x => True\n  | TaggedUrn.Constraint.unconstrained, x => True\n  | TaggedUrn.Constraint.optionalNot p, s => s ≠ TaggedUrn.KeyState.set p\n  | TaggedUrn.Constraint.present, s => s ≠ TaggedUrn.KeyState.unset\n  | TaggedUrn.Constraint.presentNot p, s => s ≠ TaggedUrn.KeyState.unset ∧ s ≠ TaggedUrn.KeyState.set p\n  | TaggedUrn.Constraint.exact p, s => s = TaggedUrn.KeyState.set p\n  | TaggedUrn.Constraint.absent, s => s = TaggedUrn.KeyState.unset",
+      "definition": "fun c x =>\n  match x with\n  | TaggedUrn.KeyState.unset => c.mayBeAbsent = true\n  | TaggedUrn.KeyState.set v => c.vals.allows v = true",
       "package": "tagged_urn_formal",
-      "fingerprint": "aee80a946434e6281e1210e8eb0085e8ec8f9e2a0fbdb2103966191d5637ecb1",
+      "fingerprint": "d87addcb03fbe00cf243d45db9cbb5817d518471dab54ea00707f9c5f0deff2f",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Constraint.lean",
         "start": {
-          "line": 36,
+          "line": 232,
           "column": 1
         },
         "end": {
-          "line": 44,
-          "column": 27
+          "line": 236,
+          "column": 37
         }
       }
     },
@@ -121,16 +130,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b => TaggedUrn.refines a b ∨ TaggedUrn.refines b a",
       "package": "tagged_urn_formal",
-      "fingerprint": "a383cafc8c675c9125a90a66a5d9c1d5e0183f54485365327b5b702b952fe396",
+      "fingerprint": "8de6c2a435501807aacc87948e00f4605fdd0fe748dfe68d8c938fd3ce938435",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 72,
+          "line": 90,
           "column": 1
         },
         "end": {
-          "line": 73,
+          "line": 91,
           "column": 63
         }
       }
@@ -141,16 +150,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b => TaggedUrn.refines a b ∧ TaggedUrn.refines b a",
       "package": "tagged_urn_formal",
-      "fingerprint": "62a798359c0f814cc5a5394753eac1851acacdc70d11ed2b7d2ce62b8f87d09e",
+      "fingerprint": "1739e2478d32a7d38bb82783f3472b0cae33dd06d75030a5e50d79077d539eed",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 74,
+          "line": 92,
           "column": 1
         },
         "end": {
-          "line": 75,
+          "line": 93,
           "column": 63
         }
       }
@@ -161,16 +170,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b =>\n  a.scheme = b.scheme ∧ ∀ (key : String), key ∈ a.keys ++ b.keys → TaggedUrn.tagMeets (a.tag key) (b.tag key) = true",
       "package": "tagged_urn_formal",
-      "fingerprint": "97f190a845fd77fd75c747f99f5d5712b0d48e64d18d4b48d5aad541d77594a1",
+      "fingerprint": "f7708576cc85b55da1af7fbf2247346d1d6f411d770ab79d61be9ba3de8da43b",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 140,
+          "line": 158,
           "column": 1
         },
         "end": {
-          "line": 145,
+          "line": 163,
           "column": 70
         }
       }
@@ -181,16 +190,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b =>\n  a.scheme = b.scheme ∧\n    ∀ (key : String), key ∈ a.keys ++ b.keys → TaggedUrn.tagMeets (a.tag key).closed (b.tag key) = true",
       "package": "tagged_urn_formal",
-      "fingerprint": "ea159e28955c8c84fb3f58e391783b9414880e49ed323718c41e539e02a9a43d",
+      "fingerprint": "cdea31c4d6783e8fd489b4894d48f33b30ed176096401ba2b98a66833e3a217b",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 257,
+          "line": 276,
           "column": 1
         },
         "end": {
-          "line": 263,
+          "line": 282,
           "column": 77
         }
       }
@@ -201,16 +210,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b =>\n  a.scheme = b.scheme ∧ ∀ (key : String), key ∈ a.keys ++ b.keys → TaggedUrn.tagMatch (a.tag key) (b.tag key) = true",
       "package": "tagged_urn_formal",
-      "fingerprint": "6942509bbefdfaf5c81174a0da7421e8743d07ddcb0c63a386b768195f3b3c11",
+      "fingerprint": "39a3119a85ffb2deb9d56a61bdacac71b747a361e203680ed1e7ea2359b04992",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 27,
+          "line": 45,
           "column": 1
         },
         "end": {
-          "line": 31,
+          "line": 49,
           "column": 70
         }
       }
@@ -221,16 +230,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b =>\n  a.scheme = b.scheme ∧\n    ∀ (key : String), key ∈ a.keys ++ b.keys → TaggedUrn.tagMatch (a.tag key).closed (b.tag key).closed = true",
       "package": "tagged_urn_formal",
-      "fingerprint": "4a0fda7a3a680f164025d12206556982e0119f949ebd16273cf8a0b771ba7278",
+      "fingerprint": "ee71b20d9fc9a386e0816090f26337e5ea7475d57fe5476aefda6460ec759b90",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 303,
+          "line": 324,
           "column": 1
         },
         "end": {
-          "line": 306,
+          "line": 327,
           "column": 84
         }
       }
@@ -241,17 +250,37 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
       "definition": "fun a b =>\n  a.scheme = b.scheme ∧\n    ∀ (key : String), key ∈ a.keys ++ b.keys → TaggedUrn.tagMatch (a.tag key).closed (b.tag key) = true",
       "package": "tagged_urn_formal",
-      "fingerprint": "9b564936877f0ec34c42054ba630d51450ae609899c55e3b9ae2568d66c76998",
+      "fingerprint": "f08fd8db228dd4b040a0fbdf4c53cad99716f2b573d16443090752bb165b61c3",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 200,
+          "line": 218,
           "column": 1
         },
         "end": {
-          "line": 203,
+          "line": 221,
           "column": 77
+        }
+      }
+    },
+    {
+      "name": "TaggedUrn.tagScore",
+      "kind": "lungo.model",
+      "statement": "TaggedUrn.Constraint → Nat",
+      "definition": "fun x =>\n  match x with\n  | TaggedUrn.Constraint.missing => 0\n  | TaggedUrn.Constraint.written false (TaggedUrn.Values.oneOf vs) =>\n    if vs.isEmpty = true then 5 else if TaggedUrn.twoDistinct vs = true then 3 else 4\n  | TaggedUrn.Constraint.written false (TaggedUrn.Values.noneOf vs) => if vs.isEmpty = true then 2 else 3\n  | TaggedUrn.Constraint.written true (TaggedUrn.Values.oneOf vs) => if vs.isEmpty = true then 5 else 1\n  | TaggedUrn.Constraint.written true (TaggedUrn.Values.noneOf vs) => if vs.isEmpty = true then 0 else 1",
+      "package": "tagged_urn_formal",
+      "fingerprint": "a07ea4bc4564c6b54e8aa1672350cd0047f268ba0287657a608a496ad3d302e7",
+      "source": {
+        "package": "tagged_urn_formal",
+        "file": "TaggedUrn/Urn.lean",
+        "start": {
+          "line": 399,
+          "column": 1
+        },
+        "end": {
+          "line": 406,
+          "column": 61
         }
       }
     },
@@ -261,16 +290,16 @@ export const ASSURANCE = L.parseAssurance({
       "statement": "TaggedUrn.Urn → Nat",
       "definition": "fun u => (List.map (fun pair => TaggedUrn.tagScore pair.snd) u.tags).sum",
       "package": "tagged_urn_formal",
-      "fingerprint": "7776afd6ad1380896e6b0b3fa9877251656ee579aa9a52fe97fec91efc508edf",
+      "fingerprint": "2c02313e746f309546f338bd32c08fbffbbaf1ffa5f95af36a2f4964755ea3f5",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 366,
+          "line": 415,
           "column": 1
         },
         "end": {
-          "line": 369,
+          "line": 418,
           "column": 49
         }
       }
@@ -300,16 +329,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "ca6a514570a3773c7c219fcbab650705b8ec3209cdf2747bc5d1a247d549f441",
+      "fingerprint": "19621863b21c3b7d87a8512c6323899cdad77d30b70abc1c87d831c77757d1a6",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 81,
+          "line": 82,
           "column": 1
         },
         "end": {
-          "line": 84,
+          "line": 85,
           "column": 74
         }
       }
@@ -335,16 +364,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "df5c2ec9f21e6e2e994d7f754d0682b6552c34ec0b91eb3340675177fb51add2",
+      "fingerprint": "b3ac2ffe13c920ddecc2b1df39ac8a23e257e46282f2465ff5ec1d21568fe5a8",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 74,
+          "line": 75,
           "column": 1
         },
         "end": {
-          "line": 77,
+          "line": 78,
           "column": 75
         }
       }
@@ -368,16 +397,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "115a733718825f3e1f4a36a3caee9fe8d6454f336652eabd03d7191248d203ca",
+      "fingerprint": "8e311f0d1e5fc8799f2dfed355c9d02eed42ce182545906eed041cf0a4a1bb50",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 168,
+          "line": 175,
           "column": 1
         },
         "end": {
-          "line": 177,
+          "line": 184,
           "column": 12
         }
       }
@@ -401,16 +430,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "fd4f0e45e28d285cb8361305402dc37cd11658a47f365dc0e2b75f62ea97f66c",
+      "fingerprint": "9670f2e6209c9141d4ed7c0a091236bba0528958213113fb9f0e49f4ccdb525d",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 161,
+          "line": 168,
           "column": 1
         },
         "end": {
-          "line": 166,
+          "line": 173,
           "column": 21
         }
       }
@@ -422,7 +451,7 @@ export const ASSURANCE = L.parseAssurance({
         "TaggedUrn.Exec.leastUpperBound"
       ],
       "specifications": [],
-      "statement": "∀ {scheme : String} {us : List TaggedUrn.Exec.Wf} {out : List (String × TaggedUrn.Constraint)},\n  TaggedUrn.Exec.leastUpperBound scheme us = some out →\n    us ≠ [] →\n      ∀ (b : TaggedUrn.Urn),\n        (∀ (u : TaggedUrn.Exec.Wf), u ∈ us → TaggedUrn.refines u.urn b) →\n          (∀ (k r : String),\n              b.tag k = TaggedUrn.Constraint.presentNot r ∨ b.tag k = TaggedUrn.Constraint.optionalNot r →\n                ∃ u, u ∈ us ∧ (u.urn.tag k).named = some r) →\n            TaggedUrn.refines (TaggedUrn.boundUrn scheme (List.map (fun x => x.urn) us)) b",
+      "statement": "∀ {scheme : String} {us : List TaggedUrn.Exec.Wf} {out : List (String × TaggedUrn.Constraint)},\n  TaggedUrn.Exec.leastUpperBound scheme us = some out →\n    us ≠ [] →\n      ∀ (b : TaggedUrn.Urn),\n        (∀ (u : TaggedUrn.Exec.Wf), u ∈ us → TaggedUrn.refines u.urn b) →\n          TaggedUrn.refines (TaggedUrn.boundUrn scheme (List.map (fun x => x.urn) us)) b",
       "status": "proved",
       "evidence_trust": {
         "axioms": [
@@ -434,16 +463,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "879df22171190fda9e358ecb2d94cb8808151d59b62c1f9a15bf61fc6e63ea80",
+      "fingerprint": "2c947e92e39f417180367d10c4ddcf8c1409dadcc2a306829914a14cda3282f6",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 205,
+          "line": 212,
           "column": 1
         },
         "end": {
-          "line": 224,
+          "line": 225,
           "column": 46
         }
       }
@@ -467,16 +496,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "e05372e3884dc9d35d8eb79e6eaa17d32af8294d827042eb1c849742d46b1d9b",
+      "fingerprint": "e118ba0ca88a24dec5c5249fce309dd1031259e5ee180eeabbacfbb168d7f4cc",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 179,
+          "line": 186,
           "column": 1
         },
         "end": {
-          "line": 194,
+          "line": 201,
           "column": 12
         }
       }
@@ -500,16 +529,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "b39ceb9b5509ab9297e0e400884e70e63fa6396313ab7b2d14ed17185c0b87ac",
+      "fingerprint": "35524e13de3af1435de69a06d7e319f0de2572781d87860c3acdc40519a88e40",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 196,
+          "line": 203,
           "column": 1
         },
         "end": {
-          "line": 203,
+          "line": 210,
           "column": 67
         }
       }
@@ -533,16 +562,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "3d6be601f0230b53d77e6b9268e6039a279c909d4847b67a80349a369c651102",
+      "fingerprint": "aaa35e5167550e716b6286127ef522b3e83ef8db8c822eaf4b733687e693469b",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 40,
+          "line": 41,
           "column": 1
         },
         "end": {
-          "line": 45,
+          "line": 46,
           "column": 21
         }
       }
@@ -566,16 +595,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "c8a0d59be68c4e53ad705b7f8e779e3815628db8b4e74448f5bc1571f7b75d45",
+      "fingerprint": "6f055e7403a1c7d1c5fa1d38e83be4f88961861fd438d459dc73ab9ba0f0d850",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 57,
+          "line": 58,
           "column": 1
         },
         "end": {
-          "line": 62,
+          "line": 63,
           "column": 6
         }
       }
@@ -599,16 +628,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "eb8b8b268fa3e023d48a4ca7e20eae3f0a2811c946a39c7a89d9c3f3a93c5a96",
+      "fingerprint": "fcf94db2a477e409d7182efa0c00672681547d5a022d10dcdfee75e3b71bc63d",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 32,
+          "line": 33,
           "column": 1
         },
         "end": {
-          "line": 38,
+          "line": 39,
           "column": 12
         }
       }
@@ -634,16 +663,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "89f769c0a0097cc699aa52a956b77849bc84ff675ee51fdc366ece46b0559b3e",
+      "fingerprint": "8d956ad2a0a0d8c6478cc5a7a609a026ed8fd3208626facd271aabea03992b45",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 129,
+          "line": 136,
           "column": 1
         },
         "end": {
-          "line": 133,
+          "line": 140,
           "column": 16
         }
       }
@@ -669,16 +698,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "796d3d22175ecf4a6767ede9143e1900ff445cd1c826b51c6745c1744a176379",
+      "fingerprint": "d199536dae1c43220d3bb0fbdb45e9ee38f481a3e59c71ae8def6577af69b82b",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 103,
+          "line": 110,
           "column": 1
         },
         "end": {
-          "line": 105,
+          "line": 112,
           "column": 90
         }
       }
@@ -702,16 +731,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "3c389a9c5b3d0b92c65d126c934395b16cc6b13be125931cdb80b1afa6d6bab3",
+      "fingerprint": "15095d672f7a28cfdde3f60c5ae45ca635025541a582b7d892238694d0741f63",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 52,
+          "line": 53,
           "column": 1
         },
         "end": {
-          "line": 55,
+          "line": 56,
           "column": 18
         }
       }
@@ -737,16 +766,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "15d236a8d5b863c8cbacddb185d6344d34df12530e083288881b1e1451992a1d",
+      "fingerprint": "d0e7573ded5679260f93759792afcfa5086a472fdc9309e3e5dfe51037b4638a",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 139,
+          "line": 146,
           "column": 1
         },
         "end": {
-          "line": 143,
+          "line": 150,
           "column": 34
         }
       }
@@ -772,16 +801,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "7bc6b885dcedfad9aab7ed91489bad62a953e5ee4cfac5fe04bb5926ab393cc8",
+      "fingerprint": "fddbe6e88eaf1c2f6afd468ee1970200ad1e45db9af694ccafc439b23a6c258f",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 119,
+          "line": 126,
           "column": 1
         },
         "end": {
-          "line": 123,
+          "line": 130,
           "column": 16
         }
       }
@@ -807,16 +836,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "51e6d6fa43ae51d3dbd9e94fe8c45377e8e90b7a1c87f42ce22bee72cb9948a8",
+      "fingerprint": "175907228521fb7d79e10fb6c0757ea7648d84db636f084938233d68ebb92419",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 68,
+          "line": 69,
           "column": 1
         },
         "end": {
-          "line": 70,
+          "line": 71,
           "column": 94
         }
       }
@@ -842,17 +871,48 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "5de9289b98772acc1a3bdeb6f5490dc17554f3b80e70cc1134bbad4a7de782d4",
+      "fingerprint": "3cf172bdac7846c9af925111ba9337558954bfd3ca68fccaef9f0c5859dd4756",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 89,
+          "line": 90,
           "column": 1
         },
         "end": {
-          "line": 90,
+          "line": 91,
           "column": 72
+        }
+      }
+    },
+    {
+      "name": "TaggedUrn.Exec.tagSpecificity_eq",
+      "relation": "lungo.equals",
+      "subjects": [
+        "TaggedUrn.Exec.tagSpecificity"
+      ],
+      "specifications": [
+        "TaggedUrn.tagScore"
+      ],
+      "statement": "∀ (c : TaggedUrn.Constraint), TaggedUrn.Exec.tagSpecificity c = TaggedUrn.tagScore c",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "tagged_urn_formal",
+      "fingerprint": "d845f4b85d6d4667fe961b79c26e6c660f689b1fac7ae3d6993178458039e7c8",
+      "source": {
+        "package": "tagged_urn_formal",
+        "file": "TaggedUrn/Exec.lean",
+        "start": {
+          "line": 96,
+          "column": 1
+        },
+        "end": {
+          "line": 97,
+          "column": 82
         }
       }
     },
@@ -877,16 +937,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "70fe94fa81c48ecfc901f59fedb0eac182494901a83ae15e2dbf767985c1c468",
+      "fingerprint": "643de0330cb767f0a8fbd0318ecaec6354e8623e9ff00f644bbcd6553f7e08cd",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 148,
+          "line": 155,
           "column": 1
         },
         "end": {
-          "line": 151,
+          "line": 158,
           "column": 33
         }
       }
@@ -912,16 +972,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "f203615e0a8f0df1a8bf18fef1af72a3154cc1bf1760848c11b1502b5d89b1bb",
+      "fingerprint": "6b16797143839fa3231f3d7ff80eacdd63d67654186b4fa313807d7402c92980",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 95,
+          "line": 102,
           "column": 1
         },
         "end": {
-          "line": 97,
+          "line": 104,
           "column": 85
         }
       }
@@ -947,16 +1007,16 @@ export const ASSURANCE = L.parseAssurance({
       },
       "assumptions": [],
       "package": "tagged_urn_formal",
-      "fingerprint": "fe9f085b676ca28a62abc13fe46fa03a2761f604a851ffb2698ea9b17bf259ac",
+      "fingerprint": "a6f21c607f3b246f444c664260828a52f723d17247a2aa3db8cb2f1ecfc4ed94",
       "source": {
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 110,
+          "line": 117,
           "column": 1
         },
         "end": {
-          "line": 112,
+          "line": 119,
           "column": 84
         }
       }
@@ -992,11 +1052,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 79,
+          "line": 80,
           "column": 1
         },
         "end": {
-          "line": 79,
+          "line": 80,
           "column": 63
         }
       }
@@ -1029,11 +1089,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 72,
+          "line": 73,
           "column": 1
         },
         "end": {
-          "line": 72,
+          "line": 73,
           "column": 63
         }
       }
@@ -1073,11 +1133,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 153,
+          "line": 160,
           "column": 1
         },
         "end": {
-          "line": 159,
+          "line": 166,
           "column": 12
         }
       }
@@ -1110,11 +1170,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 27,
+          "line": 28,
           "column": 1
         },
         "end": {
-          "line": 30,
+          "line": 31,
           "column": 61
         }
       }
@@ -1147,11 +1207,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 99,
+          "line": 106,
           "column": 1
         },
         "end": {
-          "line": 101,
+          "line": 108,
           "column": 75
         }
       }
@@ -1184,11 +1244,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 125,
+          "line": 132,
           "column": 1
         },
         "end": {
-          "line": 127,
+          "line": 134,
           "column": 81
         }
       }
@@ -1219,11 +1279,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 47,
+          "line": 48,
           "column": 1
         },
         "end": {
-          "line": 50,
+          "line": 51,
           "column": 87
         }
       }
@@ -1256,11 +1316,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 64,
+          "line": 65,
           "column": 1
         },
         "end": {
-          "line": 66,
+          "line": 67,
           "column": 66
         }
       }
@@ -1293,11 +1353,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 135,
+          "line": 142,
           "column": 1
         },
         "end": {
-          "line": 137,
+          "line": 144,
           "column": 85
         }
       }
@@ -1330,11 +1390,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 114,
+          "line": 121,
           "column": 1
         },
         "end": {
-          "line": 117,
+          "line": 124,
           "column": 81
         }
       }
@@ -1353,7 +1413,8 @@ export const ASSURANCE = L.parseAssurance({
         "unsafe_dependencies": [],
         "partial_dependencies": [],
         "extern_dependencies": [
-          "lean_nat_add"
+          "lean_nat_add",
+          "lean_string_dec_eq"
         ]
       },
       "claims": [
@@ -1366,12 +1427,44 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 86,
+          "line": 87,
           "column": 1
         },
         "end": {
-          "line": 87,
+          "line": 88,
           "column": 49
+        }
+      }
+    },
+    {
+      "name": "TaggedUrn.Exec.tagSpecificity",
+      "module": "TaggedUrn.Exec",
+      "async": false,
+      "trust": {
+        "axioms": [],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq"
+        ]
+      },
+      "claims": [
+        "TaggedUrn.Exec.tagSpecificity_eq"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "tagged_urn_formal",
+        "file": "TaggedUrn/Exec.lean",
+        "start": {
+          "line": 93,
+          "column": 1
+        },
+        "end": {
+          "line": 94,
+          "column": 56
         }
       }
     },
@@ -1398,11 +1491,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 92,
+          "line": 99,
           "column": 1
         },
         "end": {
-          "line": 93,
+          "line": 100,
           "column": 70
         }
       }
@@ -1432,11 +1525,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 145,
+          "line": 152,
           "column": 1
         },
         "end": {
-          "line": 146,
+          "line": 153,
           "column": 82
         }
       }
@@ -1446,9 +1539,7 @@ export const ASSURANCE = L.parseAssurance({
       "module": "TaggedUrn.Exec",
       "async": false,
       "trust": {
-        "axioms": [
-          "propext"
-        ],
+        "axioms": [],
         "depends_on_sorry": false,
         "unsafe_dependencies": [],
         "partial_dependencies": [],
@@ -1466,11 +1557,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 107,
+          "line": 114,
           "column": 1
         },
         "end": {
-          "line": 108,
+          "line": 115,
           "column": 57
         }
       }
@@ -1480,8 +1571,9 @@ export const ASSURANCE = L.parseAssurance({
 
 /** The layout fingerprint and descriptor of each type, by Lean name, for modules using them. */
 export const leanTypes = Object.freeze({
-  "TaggedUrn.Exec.Wf": Object.freeze({ fingerprint: "20e9f81ad195b2f4a481e7a5dcae2b3d0de6efe7b3dc720db0e2aa3b52527785", type: wfType }),
-  "TaggedUrn.Constraint": Object.freeze({ fingerprint: "481fc09e23c6415a7c3f05887577ec940a6ecc84b005e63476c1060b59edcac7", type: constraintType }),
+  "TaggedUrn.Exec.Wf": Object.freeze({ fingerprint: "4fed413de2fb915a7facb2d88381b8a592cbf88ecfc0037e9ed1d5892c5169de", type: wfType }),
+  "TaggedUrn.Constraint": Object.freeze({ fingerprint: "b65d5193904316a2793952f589e3aac63bfc80f801ab20f2693643fcf9894159", type: constraintType }),
+  "TaggedUrn.Values": Object.freeze({ fingerprint: "d39e9210a7238d1db8ec7497149536d75384770f7494bb031e64d4e3c61925f6", type: valuesType }),
 });
 
 /** The Lean program tagged_urn_formal. */
@@ -1522,6 +1614,9 @@ export class TaggedUrnFormal {
   }
   specificity(a) {
     return this.#program.invoke("tagged_urn_formal__call_l_TaggedUrn_dExec_dspecificity", [], [[wfType(), a]], L.value(L.NAT));
+  }
+  tagSpecificity(c) {
+    return this.#program.invoke("tagged_urn_formal__call_l_TaggedUrn_dExec_dtagSpecificity", [], [[constraintType(), c]], L.value(L.NAT));
   }
   valuesMatch(inst, patt) {
     return this.#program.invoke("tagged_urn_formal__call_l_TaggedUrn_dExec_dvaluesMatch", [], [[constraintType(), inst], [constraintType(), patt]], L.value(L.BOOL));
