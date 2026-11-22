@@ -1220,6 +1220,21 @@ function test577_specificity_with_special_values() {
   assertDeepEqual(mixed.specificityTuple(), [1, 1, 0, 1, 0], 'mixed tuple');
 }
 
+// TEST7210: A written tag lets its key be absent exactly when it is !k, ?k or k?=v;
+// a key the URN does not mention says nothing of it, so it allows absence too.
+function test7210_admits_absence_by_form() {
+  const urn = TaggedUrn.fromString('media:!a;?b;c?=v;d;e=v;f!=v');
+  assert(urn.admitsAbsence('a'), '!a admits absence');
+  assert(urn.admitsAbsence('b'), '?b admits absence');
+  assert(urn.admitsAbsence('c'), 'c?=v admits absence');
+  assert(!urn.admitsAbsence('d'), 'd does not admit absence');
+  assert(!urn.admitsAbsence('e'), 'e=v does not admit absence');
+  assert(!urn.admitsAbsence('f'), 'f!=v does not admit absence');
+  assert(urn.admitsAbsence('g'), 'an unmentioned key admits absence');
+  // Keys are read as the URN stores them: lowercase.
+  assert(urn.admitsAbsence('A'), 'keys are lowercased');
+}
+
 // ============================================================================
 // JS-ONLY TESTS (no Rust equivalent)
 // ============================================================================
@@ -1878,6 +1893,7 @@ function runTests() {
     ['TEST6755', test6755_unquoted_value_takes_any_non_separator],
     ['TEST6756', test6756_quoted_value_is_literal],
     ['TEST7241', test7241_urns_are_ordered_by_their_parts],
+    ['TEST7210', test7210_admits_absence_by_form],
     // JS-only tests
     ['JS-ONLY: op tag rename', test0001_JsOnly_op_tag_rename],
     // Convenience method tests
