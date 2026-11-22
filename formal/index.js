@@ -216,6 +216,26 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "TaggedUrn.refinesBothClosed",
+      "kind": "lungo.relation",
+      "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
+      "definition": "fun a b =>\n  a.scheme = b.scheme ∧\n    ∀ (key : String), key ∈ a.keys ++ b.keys → TaggedUrn.tagMatch (a.tag key).closed (b.tag key).closed = true",
+      "package": "tagged_urn_formal",
+      "fingerprint": "4a0fda7a3a680f164025d12206556982e0119f949ebd16273cf8a0b771ba7278",
+      "source": {
+        "package": "tagged_urn_formal",
+        "file": "TaggedUrn/Urn.lean",
+        "start": {
+          "line": 303,
+          "column": 1
+        },
+        "end": {
+          "line": 306,
+          "column": 84
+        }
+      }
+    },
+    {
       "name": "TaggedUrn.refinesClosed",
       "kind": "lungo.relation",
       "statement": "TaggedUrn.Urn → TaggedUrn.Urn → Prop",
@@ -246,11 +266,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Urn.lean",
         "start": {
-          "line": 308,
+          "line": 366,
           "column": 1
         },
         "end": {
-          "line": 311,
+          "line": 369,
           "column": 49
         }
       }
@@ -353,11 +373,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 141,
+          "line": 151,
           "column": 1
         },
         "end": {
-          "line": 150,
+          "line": 160,
           "column": 12
         }
       }
@@ -386,11 +406,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 134,
+          "line": 144,
           "column": 1
         },
         "end": {
-          "line": 139,
+          "line": 149,
           "column": 21
         }
       }
@@ -419,11 +439,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 178,
+          "line": 188,
           "column": 1
         },
         "end": {
-          "line": 197,
+          "line": 207,
           "column": 46
         }
       }
@@ -452,11 +472,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 152,
+          "line": 162,
           "column": 1
         },
         "end": {
-          "line": 167,
+          "line": 177,
           "column": 12
         }
       }
@@ -485,11 +505,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 169,
+          "line": 179,
           "column": 1
         },
         "end": {
-          "line": 176,
+          "line": 186,
           "column": 67
         }
       }
@@ -631,6 +651,41 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "TaggedUrn.Exec.refinesBothClosed_decides",
+      "relation": "lungo.decides",
+      "subjects": [
+        "TaggedUrn.Exec.refinesBothClosed"
+      ],
+      "specifications": [
+        "TaggedUrn.refinesBothClosed"
+      ],
+      "statement": "∀ (a b : TaggedUrn.Exec.Wf), TaggedUrn.Exec.refinesBothClosed a b = true ↔ TaggedUrn.refinesBothClosed a.urn b.urn",
+      "status": "proved",
+      "evidence_trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false
+      },
+      "assumptions": [],
+      "package": "tagged_urn_formal",
+      "fingerprint": "15d236a8d5b863c8cbacddb185d6344d34df12530e083288881b1e1451992a1d",
+      "source": {
+        "package": "tagged_urn_formal",
+        "file": "TaggedUrn/Exec.lean",
+        "start": {
+          "line": 122,
+          "column": 1
+        },
+        "end": {
+          "line": 126,
+          "column": 34
+        }
+      }
+    },
+    {
       "name": "TaggedUrn.Exec.refinesClosed_decides",
       "relation": "lungo.decides",
       "subjects": [
@@ -761,11 +816,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 121,
+          "line": 131,
           "column": 1
         },
         "end": {
-          "line": 124,
+          "line": 134,
           "column": 33
         }
       }
@@ -952,11 +1007,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 126,
+          "line": 136,
           "column": 1
         },
         "end": {
-          "line": 132,
+          "line": 142,
           "column": 12
         }
       }
@@ -1110,6 +1165,43 @@ export const ASSURANCE = L.parseAssurance({
       }
     },
     {
+      "name": "TaggedUrn.Exec.refinesBothClosed",
+      "module": "TaggedUrn.Exec",
+      "async": false,
+      "trust": {
+        "axioms": [
+          "Classical.choice",
+          "Quot.sound",
+          "propext"
+        ],
+        "depends_on_sorry": false,
+        "unsafe_dependencies": [],
+        "partial_dependencies": [],
+        "extern_dependencies": [
+          "lean_string_dec_eq",
+          "lean_string_dec_lt"
+        ]
+      },
+      "claims": [
+        "TaggedUrn.Exec.refinesBothClosed_decides"
+      ],
+      "assumptions": [],
+      "facilities": [],
+      "roles": [],
+      "source": {
+        "package": "tagged_urn_formal",
+        "file": "TaggedUrn/Exec.lean",
+        "start": {
+          "line": 118,
+          "column": 1
+        },
+        "end": {
+          "line": 120,
+          "column": 85
+        }
+      }
+    },
+    {
       "name": "TaggedUrn.Exec.refinesClosed",
       "module": "TaggedUrn.Exec",
       "async": false,
@@ -1239,11 +1331,11 @@ export const ASSURANCE = L.parseAssurance({
         "package": "tagged_urn_formal",
         "file": "TaggedUrn/Exec.lean",
         "start": {
-          "line": 118,
+          "line": 128,
           "column": 1
         },
         "end": {
-          "line": 119,
+          "line": 129,
           "column": 82
         }
       }
@@ -1317,6 +1409,9 @@ export class TaggedUrnFormal {
   }
   refines(a, b) {
     return this.#program.invoke("tagged_urn_formal__call_l_TaggedUrn_dExec_drefines", [], [[wfType(), a], [wfType(), b]], L.value(L.BOOL));
+  }
+  refinesBothClosed(a, b) {
+    return this.#program.invoke("tagged_urn_formal__call_l_TaggedUrn_dExec_drefinesBothClosed", [], [[wfType(), a], [wfType(), b]], L.value(L.BOOL));
   }
   refinesClosed(a, b) {
     return this.#program.invoke("tagged_urn_formal__call_l_TaggedUrn_dExec_drefinesClosed", [], [[wfType(), a], [wfType(), b]], L.value(L.BOOL));

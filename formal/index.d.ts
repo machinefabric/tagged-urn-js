@@ -41,6 +41,8 @@ export class TaggedUrnFormal {
   meetsClosed(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.refines : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
   refines(a: Wf, b: Wf): boolean;
+  /** Lean's TaggedUrn.Exec.refinesBothClosed : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
+  refinesBothClosed(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.refinesClosed : TaggedUrn.Exec.Wf → TaggedUrn.Exec.Wf → Bool */
   refinesClosed(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.specificity : TaggedUrn.Exec.Wf → Nat */
