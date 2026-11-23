@@ -5,13 +5,13 @@ Production-ready JavaScript implementation of Tagged URN with strict validation 
 ## Features
 
 - **Strict Rule Enforcement** - Follows exact same rules as Rust, Go, and Objective-C implementations
-- **Six Tag Forms** - exact `k=v`, present `k`, absent `!k`, unconstrained `?k`, `k?=v` (absent or not v), `k!=v` (present and not v)
-- **Typed Tags** - Each tag is stored as the constraint it writes: a frozen `{ kind, value? }`, made with `Constraint`
+- **Tag Forms** - exact `k=v`, present `k`, absent `!k`, unconstrained `?k`, `k?=v` (absent or not v), `k!=v` (present and not v), and sets of values: `k=a|b` (one of), `k!=a|b` (none of), `k?=a|b` (absent or none of), `k=a|b|!` (absent or one of)
+- **Typed Tags** - Each tag is stored as the constraint it writes, the proved model's own value, frozen: `{ kind: 'written', absent, values: { kind: 'oneOf' | 'noneOf', vs } }`, made with `Constraint`
 - **Identifiers** - The prefix and every key are an ASCII letter followed by ASCII letters, digits and `-`
 - **Case Insensitive** - The prefix, keys and unquoted values are lowered; quoted values keep their case
 - **Literal Quoting** - A quoted value is always the literal value: `x="*"` is the exact value `*`
 - **Tag Order Independent** - Canonical alphabetical sorting
-- **Graded Specificity** - `?k` 0, `k?=v` 1, `k` 2, `k!=v` 3, `k=v` 4, `!k` 5
+- **Graded Specificity** - `?k` 0, `k?=v` and `k=v|!` 1, `k` 2, `k!=v` and `k=a|b` 3, `k=v` 4, `!k` 5
 - **Production Ready** - No fallbacks, fails hard on invalid input
 - **Comprehensive Tests** - Full test suite verifying all rules
 
@@ -34,7 +34,9 @@ import { Constraint, TaggedUrn, TaggedUrnBuilder, UrnMatcher } from 'tagged-urn'
 // Create from string
 const urn = TaggedUrn.fromString('cap:generate;ext=pdf');
 console.log(urn.toString()); // "cap:ext=pdf;generate"
-console.log(urn.getTag('ext')); // { kind: 'exact', value: 'pdf' }
+console.log(urn.getTag('ext'));
+// { kind: 'written', absent: false, values: { kind: 'oneOf', vs: ['pdf'] } }
+console.log(Constraint.exactValue(urn.getTag('ext'))); // "pdf"
 
 // Use builder pattern
 const built = new TaggedUrnBuilder('cap')
@@ -79,9 +81,32 @@ console.log(best.toString()); // "cap:ext=pdf;generate" (most specific)
 - `accepts(instance)` - Check if this URN (as pattern) accepts an instance
 - `specificity()` - Get specificity score for matching
 - `isMoreSpecificThan(other)` - Compare specificity
-- `compare(other)` - Order by parts: prefix, then each tag by key, constraint form, value
+- `compare(other)` - Order by parts: prefix, then each tag by key, constraint form, values
 - `TaggedUrn.writeValue(value)` - A value as a tag writes it: bare, or quoted when it must be
 - `equals(other)` - Check equality
+
+### Constraint
+
+The model's constraint for one key, as a URN stores it:
+
+| Text | Value |
+|---|---|
+| `k` | `{ kind: 'written', absent: false, values: { kind: 'noneOf', vs: [] } }` |
+| `?k` | `{ kind: 'written', absent: true, values: { kind: 'noneOf', vs: [] } }` |
+| `!k` | `{ kind: 'written', absent: true, values: { kind: 'oneOf', vs: [] } }` |
+| `k=a\|b` | `{ kind: 'written', absent: false, values: { kind: 'oneOf', vs: ['a', 'b'] } }` |
+| `k=a\|b\|!` | `{ kind: 'written', absent: true, values: { kind: 'oneOf', vs: ['a', 'b'] } }` |
+| `k!=a\|b` | `{ kind: 'written', absent: false, values: { kind: 'noneOf', vs: ['a', 'b'] } }` |
+| `k?=a\|b` | `{ kind: 'written', absent: true, values: { kind: 'noneOf', vs: ['a', 'b'] } }` |
+
+`k=v`, `k!=v` and `k?=v` are the sets of one value. A set's values are each
+once, in increasing code-point order. `{ kind: 'missing' }` stands for a key a
+URN does not mention and is never stored.
+
+- `Constraint.present()`, `unconstrained()`, `absent()`, `exact(v)`, `presentNot(v)`, `optionalNot(v)` - The forms as the text writes them
+- `Constraint.oneOf(values, orAbsent)`, `Constraint.noneOf(values, orAbsent)` - A set of values, made canonical
+- `Constraint.exactValue(c)` - The value of `k=v`, or `null` for any other form
+- `Constraint.equals(a, b)` - Whether two constraints are the same
 
 ### TaggedUrnBuilder Class
 
@@ -123,8 +148,9 @@ Error codes:
 - `ErrorCodes.MISSING_PREFIX` - No prefix followed by ':'
 - `ErrorCodes.EMPTY_PREFIX` - Empty prefix
 - `ErrorCodes.INVALID_CHARACTER` - A character not allowed in a prefix, key or value
-- `ErrorCodes.INVALID_TAG_FORMAT` - A tag given no constraint
+- `ErrorCodes.INVALID_TAG_FORMAT` - A tag given no constraint, or one no text writes
 - `ErrorCodes.DUPLICATE_KEY` - Duplicate tag keys
+- `ErrorCodes.DUPLICATE_VALUE` - A value given twice in one tag's set of values
 - `ErrorCodes.EMPTY_TAG` - Empty tag components
 - `ErrorCodes.UNTERMINATED_QUOTE` - Quoted value never closed
 - `ErrorCodes.INVALID_ESCAPE_SEQUENCE` - Escape other than `\"` or `\\`
@@ -143,10 +169,11 @@ This implementation strictly follows the Tagged URN rules. See [Tagged URN RULES
 4. **Semicolon Separated** - Tags separated by `;`
 5. **Optional Trailing `;`** - `cap:a=1;` == `cap:a=1`
 6. **Canonical Form** - Lowercase, alphabetically sorted, no trailing `;`, values quoted only when they must be
-7. **Six Forms** - `k=v`, `k`, `!k`, `?k`, `k?=v`, `k!=v`; `k=?v` and `k=!v` are `k?=v` and `k!=v`
-8. **Identifiers** - The prefix and every key are an ASCII letter followed by ASCII letters, digits and `-`
-9. **Unquoted Values** - Any character but `;`, `=`, `"`, `\` and whitespace
-10. **No Duplicate Keys** - Fails hard on duplicates
+7. **Forms** - `k=v`, `k`, `!k`, `?k`, `k?=v`, `k!=v`; `k=?v` and `k=!v` are `k?=v` and `k!=v`
+8. **Sets of Values** - `k=a|b`, `k!=a|b`, `k?=a|b`, `k=a|b|!`; a bare `!` member means "or absent" only without a qualifier, a value given twice is refused, and a bare `*`, `?`, `?v` or `!v` among the values is refused (quote it)
+9. **Identifiers** - The prefix and every key are an ASCII letter followed by ASCII letters, digits and `-`
+10. **Unquoted Values** - Any character but `;`, `=`, `|`, `"`, `\` and whitespace
+11. **No Duplicate Keys** - Fails hard on duplicates
 
 ### Matching Semantics:
 

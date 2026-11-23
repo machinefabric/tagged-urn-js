@@ -10,14 +10,16 @@ export function wfType(): L.Type<Wf>;
 /** Lean's TaggedUrn.Constraint. */
 export type Constraint =
   | { readonly kind: "missing" }
-  | { readonly kind: "unconstrained" }
-  | { readonly kind: "optionalNot"; readonly value: string }
-  | { readonly kind: "present" }
-  | { readonly kind: "presentNot"; readonly value: string }
-  | { readonly kind: "exact"; readonly value: string }
-  | { readonly kind: "absent" }
+  | { readonly kind: "written"; readonly absent: boolean; readonly values: Values }
 ;
 export function constraintType(): L.Type<Constraint>;
+
+/** Lean's TaggedUrn.Values. */
+export type Values =
+  | { readonly kind: "oneOf"; readonly vs: Array<string> }
+  | { readonly kind: "noneOf"; readonly vs: Array<string> }
+;
+export function valuesType(): L.Type<Values>;
 
 /** The layout fingerprint and descriptor of each type, by Lean name, for modules using them. */
 export const leanTypes: {
@@ -49,6 +51,8 @@ export class TaggedUrnFormal {
   refinesClosed(a: Wf, b: Wf): boolean;
   /** Lean's TaggedUrn.Exec.specificity : TaggedUrn.Exec.Wf → Nat */
   specificity(a: Wf): bigint;
+  /** Lean's TaggedUrn.Exec.tagSpecificity : TaggedUrn.Constraint → Nat */
+  tagSpecificity(c: Constraint): bigint;
   /** Lean's TaggedUrn.Exec.valuesMatch : TaggedUrn.Constraint → TaggedUrn.Constraint → Bool */
   valuesMatch(inst: Constraint, patt: Constraint): boolean;
   /** Lean's TaggedUrn.Exec.valuesMatchClosed : TaggedUrn.Constraint → TaggedUrn.Constraint → Bool */
