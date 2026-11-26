@@ -843,6 +843,11 @@ function test557_valueless_tag_equivalence_to_wildcard() {
 // `ext=pdf` refine each other, so they counted as equivalent, and a candidate
 // promising only "some ext" was routed to a request needing a pdf. Refinement
 // is inclusion of what each form allows: every pdf is some ext, not the reverse.
+//
+// It is kept so this path is not taken again: with `ext` equivalent to both
+// `ext=pdf` and `ext=docx`, equivalence was not transitive, and alias lookup and
+// stream matching, which use it as "the same tag set", matched one for the other
+// (tagged-urn formal, marker_is_not_exact).
 function test558_valueless_tag_matching() {
   const urn = TaggedUrn.fromString('cap:generate;ext');
   const requestPdf = TaggedUrn.fromString('cap:generate;ext=pdf');
